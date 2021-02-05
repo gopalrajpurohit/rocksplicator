@@ -16,15 +16,15 @@
 // @author Gopal Rajpurohit (grajpurohit@pinterest.com)
 //
 
-package com.pinterest.rocksplicator.config;
+package com.pinterest.rocksplicator.eventstore;
 
-import java.io.IOException;
-import java.util.function.Function;
+import com.pinterest.rocksplicator.shardmap.ShardMap;
 
-public interface FileWatcher<R> {
+import java.io.Closeable;
 
-  void addWatch(String filePath, Function<WatchedFileContext<R>, Void> onUpdate) throws IOException;
+public interface ClientShardMapLeaderEventLogger extends Closeable {
+  void process(ShardMap shardMap, long shardMapNotificationTimeMillis);
 
-  void removeWatch(String filePath, Function<WatchedFileContext<R>, Void> onUpdate);
+  void resetCache();
+
 }
-

@@ -16,15 +16,13 @@
 // @author Gopal Rajpurohit (grajpurohit@pinterest.com)
 //
 
-package com.pinterest.rocksplicator.config;
+package com.pinterest.rocksplicator.shardmap;
 
-import java.io.IOException;
-import java.util.function.Function;
+import org.json.simple.JSONObject;
 
-public interface FileWatcher<R> {
+public class ShardMaps {
 
-  void addWatch(String filePath, Function<WatchedFileContext<R>, Void> onUpdate) throws IOException;
-
-  void removeWatch(String filePath, Function<WatchedFileContext<R>, Void> onUpdate);
+  public static ShardMap fromJson(JSONObject shardMapJsonObject) {
+    return new JsonShardMap(shardMapJsonObject);
+  }
 }
-

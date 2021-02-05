@@ -16,15 +16,25 @@
 // @author Gopal Rajpurohit (grajpurohit@pinterest.com)
 //
 
-package com.pinterest.rocksplicator.config;
+package com.pinterest.rocksplicator.utils;
 
-import java.io.IOException;
-import java.util.function.Function;
+import java.util.concurrent.locks.Lock;
 
-public interface FileWatcher<R> {
+public class AutoCloseableLock implements AutoCloseable {
 
-  void addWatch(String filePath, Function<WatchedFileContext<R>, Void> onUpdate) throws IOException;
+  private final Lock lock;
 
-  void removeWatch(String filePath, Function<WatchedFileContext<R>, Void> onUpdate);
+  public AutoCloseableLock(Lock lock) {
+    this.lock = lock;
+    this.lock.lock();
+  }
+
+  public static AutoCloseableLock lock(Lock lock) {
+    return new AutoCloseableLock(lock);
+  }
+
+  @Override
+  public void close() {
+    this.lock.unlock();
+  }
 }
-

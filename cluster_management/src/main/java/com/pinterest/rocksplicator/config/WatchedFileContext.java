@@ -18,13 +18,20 @@
 
 package com.pinterest.rocksplicator.config;
 
-import java.io.IOException;
-import java.util.function.Function;
+public class WatchedFileContext<R> {
+  private R data;
+  private long lastModifiedTimeMillis;
 
-public interface FileWatcher<R> {
+  public WatchedFileContext(R data, long lastModifiedTimeMillis) {
+    this.data = data;
+    this.lastModifiedTimeMillis = lastModifiedTimeMillis;
+  }
 
-  void addWatch(String filePath, Function<WatchedFileContext<R>, Void> onUpdate) throws IOException;
+  public R getData() {
+    return data;
+  }
 
-  void removeWatch(String filePath, Function<WatchedFileContext<R>, Void> onUpdate);
+  public long getLastModifiedTimeMillis() {
+    return lastModifiedTimeMillis;
+  }
 }
-

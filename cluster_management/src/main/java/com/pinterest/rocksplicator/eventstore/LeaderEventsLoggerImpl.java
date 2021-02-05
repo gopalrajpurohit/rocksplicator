@@ -1,3 +1,21 @@
+/// Copyright 2021 Pinterest Inc.
+///
+/// Licensed under the Apache License, Version 2.0 (the "License");
+/// you may not use this file except in compliance with the License.
+/// You may obtain a copy of the License at
+///
+/// http://www.apache.org/licenses/LICENSE-2.0
+
+/// Unless required by applicable law or agreed to in writing, software
+/// distributed under the License is distributed on an "AS IS" BASIS,
+/// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+/// See the License for the specific language governing permissions and
+/// limitations under the License.
+
+//
+// @author Gopal Rajpurohit (grajpurohit@pinterest.com)
+//
+
 package com.pinterest.rocksplicator.eventstore;
 
 import com.pinterest.rocksplicator.codecs.Decoder;
@@ -25,7 +43,7 @@ public class LeaderEventsLoggerImpl implements LeaderEventsLogger {
   private final String resourcesEnabledConfigPath;
   private final String resourcesEnabledConfigType;
   private final LeaderEventHistoryStore leaderEventHistoryStore;
-  private final ConfigStore<Set<String>> configStore;
+  private final ConfigStore<Set<String>> enabledResourcesCache;
   private final Optional<Integer> maxEventsToKeep;
   private final String instanceId;
   private final boolean isEnabled;
@@ -45,42 +63,68 @@ public class LeaderEventsLoggerImpl implements LeaderEventsLogger {
     this.maxEventsToKeep = maxEventsToKeep;
 
     Decoder<byte[], Set<String>> decoder = null;
-    try {
-      decoder = ConfigCodecs.getDecoder(resourcesEnabledConfigType);
-    } catch (UnsupportedEncodingException e) {
-      e.printStackTrace();
+    if (resourcesEnabledConfigType != null && !resourcesEnabledConfigType.isEmpty()) {
+      try {
+        decoder = ConfigCodecs.getDecoder(resourcesEnabledConfigType);
+      } catch (UnsupportedEncodingException e) {
+        e.printStackTrace();
+      }
     }
 
+    /**
+     * If there is not valid resourceConfigType available, there is no configStore.
+     */
     ConfigStore<Set<String>> localConfigStore = null;
-    if (decoder != null) {
+    if (decoder != null && resourcesEnabledConfigPath != null && !resourcesEnabledConfigPath.isEmpty()) {
       try {
         localConfigStore = new ConfigStore<Set<String>>(decoder, resourcesEnabledConfigPath);
       } catch (IOException e) {
         e.printStackTrace();
       }
     }
-    this.configStore = localConfigStore;
+    this.enabledResourcesCache = localConfigStore;
 
-    if (this.configStore != null) {
+    /**
+     * If there is no enabledResourcesCache or empty zkConnectString, there is no leaderEventHistoryStore
+     */
+    if (this.enabledResourcesCache != null && zkConnectString != null && !zkConnectString.isEmpty()) {
       this.leaderEventHistoryStore = new LeaderEventHistoryStore(
           zkConnectString, clusterName, maxEventsToKeep);
     } else {
       this.leaderEventHistoryStore = null;
     }
 
+    /**
+     * If there is no leaderEventHistoryStore, then the logger implementation is disabled.
+     */
     this.isEnabled = (this.leaderEventHistoryStore != null);
   }
 
-  public boolean isEnabled() {
+  @Override
+  public boolean isLoggingEnabled() {
     return isEnabled;
   }
 
+  @Override
+  public boolean isLoggingEnabledForResource(final String resourceName) {
+    return enabledResourcesCache.get().contains(resourceName);
+  }
 
-  public LeaderEventsCollector newEventsCollector(String resourceName, String partitionName) {
-    if (isEnabled() && configStore.get().contains(resourceName)) {
+  @Override
+  public void resetCache() {
+    if (leaderEventHistoryStore != null) {
+      leaderEventHistoryStore.resetCache();
+    }
+  }
+
+  @Override
+  public LeaderEventsCollector newEventsCollector(
+      final String resourceName,
+      final String partitionName) {
+    if (isLoggingEnabled() && isLoggingEnabledForResource(resourceName)) {
       return new LeaderEventsCollectorImpl(resourceName, partitionName);
     } else {
-      if (isEnabled()) {
+      if (isLoggingEnabled()) {
         return new ResourceDisabledLeaderEventsCollector(resourceName, partitionName);
       } else {
         return new LoggingDisabledLeaderEventsCollector();
@@ -97,6 +141,12 @@ public class LeaderEventsLoggerImpl implements LeaderEventsLogger {
     @Override
     public LeaderEventsCollector addEvent(LeaderEventType eventType, String leaderNode) {
       // Ignore
+      return this;
+    }
+
+    @Override
+    public LeaderEventsCollector addEvent(LeaderEventType eventType, String leaderNode,
+                                          long eventTimeMillis) {
       return this;
     }
 
@@ -122,6 +172,13 @@ public class LeaderEventsLoggerImpl implements LeaderEventsLogger {
     }
 
     @Override
+    public LeaderEventsCollector addEvent(LeaderEventType eventType, String leaderNode,
+                                          long eventTimeMillis) {
+      LOGGER.info(String.format("Ignoring disabled Resource: %s Partition:%s LeaderEventType: %s", resourceName, partitionName, eventType));
+      return this;
+    }
+
+    @Override
     public void commit() {
       // Ignore
     }
@@ -141,14 +198,22 @@ public class LeaderEventsLoggerImpl implements LeaderEventsLogger {
       this.committed = new AtomicBoolean(false);
     }
 
+    @Override
     public LeaderEventsCollector addEvent(LeaderEventType eventType, String leaderNode) {
+      return addEvent(eventType, leaderNode, System.currentTimeMillis());
+    }
+
+    @Override
+    public LeaderEventsCollector addEvent(LeaderEventType eventType, String leaderNode,
+                                          long eventTimeMillis) {
       Preconditions.checkNotNull(eventType);
       if (LeaderEventTypes.participantEventTypes.contains(eventType)) {
         Preconditions.checkArgument(leaderNode == null);
       }
+
       if (!committed.getAndSet(true)) {
         LeaderEvent leaderEvent = new LeaderEvent();
-        leaderEvent.setEvent_timestamp_ms(System.currentTimeMillis())
+        leaderEvent.setEvent_timestamp_ms(eventTimeMillis)
             .setEvent_type(eventType)
             .setOriginating_node(instanceId);
         if (leaderNode != null) {

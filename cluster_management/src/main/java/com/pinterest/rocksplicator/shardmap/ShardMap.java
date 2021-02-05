@@ -16,15 +16,13 @@
 // @author Gopal Rajpurohit (grajpurohit@pinterest.com)
 //
 
-package com.pinterest.rocksplicator.config;
+package com.pinterest.rocksplicator.shardmap;
 
-import java.io.IOException;
-import java.util.function.Function;
+import java.util.Set;
 
-public interface FileWatcher<R> {
+public interface ShardMap {
 
-  void addWatch(String filePath, Function<WatchedFileContext<R>, Void> onUpdate) throws IOException;
+  Set<String> getResources();
 
-  void removeWatch(String filePath, Function<WatchedFileContext<R>, Void> onUpdate);
+  ResourceMap getResourceMap(String resource);
 }
-

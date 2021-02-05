@@ -16,15 +16,19 @@
 // @author Gopal Rajpurohit (grajpurohit@pinterest.com)
 //
 
-package com.pinterest.rocksplicator.config;
+package com.pinterest.rocksplicator.eventstore;
 
-import java.io.IOException;
-import java.util.function.Function;
+import org.apache.helix.model.ExternalView;
 
-public interface FileWatcher<R> {
+import java.io.Closeable;
+import java.util.List;
+import java.util.Set;
 
-  void addWatch(String filePath, Function<WatchedFileContext<R>, Void> onUpdate) throws IOException;
+public interface ExternalViewLeaderEventLogger extends Closeable {
 
-  void removeWatch(String filePath, Function<WatchedFileContext<R>, Void> onUpdate);
+  void process(
+      final List<ExternalView> externalViews,
+      final Set<String> disabledHosts,
+      final long shardMapGenStartTimeMillis,
+      final long shardMapPostTimeMillis);
 }
-

@@ -16,15 +16,22 @@
 // @author Gopal Rajpurohit (grajpurohit@pinterest.com)
 //
 
-package com.pinterest.rocksplicator.config;
+package com.pinterest.rocksplicator.eventstore;
 
-import java.io.IOException;
-import java.util.function.Function;
+class Leader {
+  private final String leaderInstanceId;
+  private final LeaderState state;
 
-public interface FileWatcher<R> {
+  Leader(String leaderInstanceId, LeaderState state) {
+    this.leaderInstanceId = leaderInstanceId;
+    this.state = state;
+  }
 
-  void addWatch(String filePath, Function<WatchedFileContext<R>, Void> onUpdate) throws IOException;
+  public String getLeaderInstanceId() {
+    return leaderInstanceId;
+  }
 
-  void removeWatch(String filePath, Function<WatchedFileContext<R>, Void> onUpdate);
+  public LeaderState getState() {
+    return state;
+  }
 }
-

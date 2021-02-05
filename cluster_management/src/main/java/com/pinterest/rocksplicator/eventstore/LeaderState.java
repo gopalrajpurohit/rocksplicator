@@ -16,15 +16,9 @@
 // @author Gopal Rajpurohit (grajpurohit@pinterest.com)
 //
 
-package com.pinterest.rocksplicator.config;
+package com.pinterest.rocksplicator.eventstore;
 
-import java.io.IOException;
-import java.util.function.Function;
-
-public interface FileWatcher<R> {
-
-  void addWatch(String filePath, Function<WatchedFileContext<R>, Void> onUpdate) throws IOException;
-
-  void removeWatch(String filePath, Function<WatchedFileContext<R>, Void> onUpdate);
+enum LeaderState {
+  LEADER_UP,
+  LEADER_DOWN
 }
-
