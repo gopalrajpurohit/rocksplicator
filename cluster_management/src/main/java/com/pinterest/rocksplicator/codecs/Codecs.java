@@ -60,7 +60,7 @@ public class Codecs {
     ThriftCodec<S> baseCodec = null;
     switch (serializationProtocol) {
       case BINARY:
-        baseCodec = new ThriftCodec<>(thriftClazz, new TBinaryProtocol.Factory());
+        baseCodec = new ThriftCodec<>(thriftClazz, new TBinaryProtocol.Factory(true, true));
         break;
       case COMPACT:
         baseCodec = new ThriftCodec<>(thriftClazz, new TCompactProtocol.Factory());

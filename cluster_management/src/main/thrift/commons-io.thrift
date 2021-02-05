@@ -13,6 +13,10 @@
 # limitations under the License.
 #
 
+//
+// @author Gopal Rajpurohit (grajpurohit@pinterest.com)
+//
+
 namespace java com.pinterest.rocksplicator.thrift.commons.io
 
 enum SerializationProtocol {
