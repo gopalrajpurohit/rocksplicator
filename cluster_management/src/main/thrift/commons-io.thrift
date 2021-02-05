@@ -27,7 +27,8 @@ enum SerializationProtocol {
 enum CompressionAlgorithm {
   UNCOMPRESSED = 0,
   SNAPPY = 1,
-  GZIP = 2
+  GZIP = 2,
+  BZIP2 = 3
 }
 
 struct WrappedData {
