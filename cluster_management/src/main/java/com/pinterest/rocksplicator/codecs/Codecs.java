@@ -45,6 +45,9 @@ public class Codecs {
       case SNAPPY:
         compressedCodec = new SnappyCompressionCodec<>(baseCodec);
         break;
+      case BZIP2:
+        compressedCodec = new BZip2CompressionCodec<>(baseCodec);
+        break;
       default:
         throw new RuntimeException(
             String.format("compression algorithm: %s not implemented", compressionAlgorithm));

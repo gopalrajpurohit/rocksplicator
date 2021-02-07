@@ -20,6 +20,7 @@
 namespace java com.pinterest.rocksplicator.thrift.shardmap
 
 //*****************//
+
 enum TReplicaType {
   LEADER = 1,
   FOLLOWER = 2,
@@ -51,6 +52,7 @@ struct TResourceMap {
 struct TShardMap {
   1: map<string, TResourceMap> resource_map;
 }
+
 //**************//
 
 enum CReplicaType {
@@ -70,12 +72,12 @@ struct CHost {
 }
 
 struct CReplica {
-  1: i16 hostsIndex,
-  2: CReplicaType replicaType,
+  1: required i16 hostsIndex,
+  2: required CReplicaType replicaType,
 }
 
 struct CResourceMap {
-  1: list<list<CReplica>> replicas;
+  1: required list<list<CReplica>> replicas;
 }
 
 struct CShardMap {
@@ -84,6 +86,7 @@ struct CShardMap {
   3: required map<string, CResourceMap> resourceMap,
 }
 
+//**************//
 
 
 
