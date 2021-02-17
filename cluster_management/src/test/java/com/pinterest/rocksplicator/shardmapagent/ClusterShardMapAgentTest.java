@@ -8,8 +8,6 @@ import com.pinterest.rocksplicator.codecs.JSONObjectCodec;
 import com.pinterest.rocksplicator.codecs.ZkGZIPCompressedShardMapCodec;
 import com.pinterest.rocksplicator.utils.ZkPathUtils;
 
-import com.sun.xml.internal.messaging.saaj.util.ByteInputStream;
-import com.sun.xml.internal.messaging.saaj.util.ByteOutputStream;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -22,8 +20,6 @@ import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -118,7 +114,8 @@ public class ClusterShardMapAgentTest {
   }
 
   private void removeDataFromZK(String resource) throws Exception {
-    zkShardMapClient.delete().forPath(ZkPathUtils.getClusterResourceShardMapPath(CLUSTER_NAME, resource));
+    zkShardMapClient.delete()
+        .forPath(ZkPathUtils.getClusterResourceShardMapPath(CLUSTER_NAME, resource));
   }
 
   private void writeDataToZK(String resource, JSONObject topLevel) throws Exception {
