@@ -3,6 +3,10 @@ package com.pinterest.rocksplicator;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
+import org.apache.log4j.BasicConfigurator;
+import org.apache.log4j.ConsoleAppender;
+import org.apache.log4j.Level;
+import org.apache.log4j.PatternLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,12 +51,16 @@ public class ShardMapAgent {
     Options options = new Options();
     options.addOption(zkShardMapSvrOption)
         .addOption(clusterOption)
-        .addOption(clustersFileOption);
+        .addOption(clustersFileOption)
+        .addOption(shardMapDirOption);
 
     return options;
   }
 
   public static void main(String[] args) {
-
+    org.apache.log4j.Logger.getRootLogger().setLevel(Level.WARN);
+    BasicConfigurator.configure(new ConsoleAppender(
+        new PatternLayout("%d{HH:mm:ss.SSS} [%t] %-5p %30.30c - %m%n")
+    ));
   }
 }
