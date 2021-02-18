@@ -18,14 +18,13 @@
 
 package com.pinterest.rocksplicator;
 
-import com.pinterest.rocksplicator.eventstore.ClientShardMapLeaderEventLogger;
-import com.pinterest.rocksplicator.eventstore.ClientShardMapLeaderEventLoggerImpl;
 import com.pinterest.rocksplicator.eventstore.ClientShardMapLeaderEventLoggerDriver;
 import com.pinterest.rocksplicator.eventstore.LeaderEventsLogger;
 import com.pinterest.rocksplicator.eventstore.LeaderEventsLoggerImpl;
 import com.pinterest.rocksplicator.eventstore.ExternalViewLeaderEventsLoggerImpl;
 import com.pinterest.rocksplicator.monitoring.mbeans.RocksplicatorMonitor;
 import com.pinterest.rocksplicator.publisher.ShardMapPublisherBuilder;
+import com.pinterest.rocksplicator.shardmapagent.ClusterShardMapAgent;
 import com.pinterest.rocksplicator.task.BackupTaskFactory;
 import com.pinterest.rocksplicator.task.DedupTaskFactory;
 import com.pinterest.rocksplicator.task.RestoreTaskFactory;
@@ -77,6 +76,7 @@ public class Participant {
   private static final String stateModel = "stateModelType";
   private static final String configPostUrl = "configPostUrl";
   private static final String shardMapZkSvrArg = "shardMapZkSvr";
+  private static final String shardMapDownloadDirArg = "shardMapDownloadDir";
 
   private static final String s3Bucket = "s3Bucket";
   private static final String disableSpectator = "disableSpectator";
@@ -142,6 +142,15 @@ public class Participant {
     shardMapZkSvrOption.setRequired(false);
     shardMapZkSvrOption.setArgName(shardMapZkSvrArg);
 
+    Option shardMapDownloadDirOption = OptionBuilder
+        .withLongOpt(shardMapDownloadDirArg)
+        .withDescription("Provide directory to download shardMap for each cluster [Optional]"
+            + " If this option is provided, also must provide shardMapZkSvr option to download"
+            + " cluster sghard_map data from").create();
+    shardMapDownloadDirOption.setArgs(1);
+    shardMapDownloadDirOption.setRequired(false);
+    shardMapDownloadDirOption.setArgName(shardMapDownloadDirArg);
+
     Option s3BucketOption =
         OptionBuilder.withLongOpt(s3Bucket).withDescription("S3 Bucket").create();
     s3BucketOption.setArgs(1);
@@ -202,6 +211,7 @@ public class Participant {
         .addOption(stateModelOption)
         .addOption(configPostUrlOption)
         .addOption(shardMapZkSvrOption)
+        .addOption(shardMapDownloadDirOption)
         .addOption(s3BucketOption)
         .addOption(disableSpectatorOption)
         .addOption(handoffEventHistoryzkSvrOption)
@@ -235,6 +245,7 @@ public class Participant {
     final String stateModelType = cmd.getOptionValue(stateModel);
     final String postUrl = cmd.getOptionValue(configPostUrl, "");
     final String shardMapZkSvr = cmd.getOptionValue(shardMapZkSvrArg, "");
+    final String shardMapDownloadDir = cmd.getOptionValue(shardMapDownloadDirArg, "");
     final String instanceName = host + "_" + port;
     String s3BucketName = "";
     final boolean useS3Backup = cmd.hasOption(s3Bucket);
@@ -246,7 +257,7 @@ public class Participant {
     final String zkEventHistoryStr = cmd.getOptionValue(handoffEventHistoryzkSvr, "");
     final String resourceConfigPath = cmd.getOptionValue(handoffEventHistoryConfigPath, "");
     final String resourceConfigType = cmd.getOptionValue(handoffEventHistoryConfigType, "");
-    final String shardMapPath = cmd.getOptionValue(handoffClientEventHistoryJsonShardMapPath, "");
+    final String clientShardMapPath = cmd.getOptionValue(handoffClientEventHistoryJsonShardMapPath, "");
 
     /**
      * Note that the last parameter is empty, since we don't dictate
@@ -259,13 +270,32 @@ public class Participant {
       staticSpectatorLeaderEventsLogger = new LeaderEventsLoggerImpl(instanceName,
           zkEventHistoryStr, clusterName, resourceConfigPath, resourceConfigType, Optional.of(128));
 
-      if (shardMapPath != null && !shardMapPath.isEmpty()) {
+      if (clientShardMapPath != null && !clientShardMapPath.isEmpty()) {
         staticClientLeaderEventsLogger = new LeaderEventsLoggerImpl(instanceName,
             zkEventHistoryStr, clusterName, resourceConfigPath, resourceConfigType, Optional.empty());
 
         staticClientShardMapLeaderEventLoggerDriver = new ClientShardMapLeaderEventLoggerDriver(
-            clusterName, shardMapPath, staticClientLeaderEventsLogger, zkEventHistoryStr);
+            clusterName, clientShardMapPath, staticClientLeaderEventsLogger, zkEventHistoryStr);
       }
+    }
+
+    /**
+     * If the zkShardMapServer is given and the download directory is given,
+     * start with downloading initial shard_map for this cluster.
+     */
+    if (!(shardMapZkSvr.isEmpty() || shardMapDownloadDir.isEmpty())) {
+      ClusterShardMapAgent clusterShardMapAgent = new ClusterShardMapAgent(shardMapZkSvr, clusterName, shardMapDownloadDir);
+      clusterShardMapAgent.startNotification();
+      Runtime.getRuntime().addShutdownHook(new Thread() {
+        @Override
+        public void run() {
+          try {
+            clusterShardMapAgent.close();
+          } catch (IOException e) {
+            e.printStackTrace();
+          }
+        }
+      });
     }
 
     LOG.error("Starting participant with ZK:" + zkConnectString);

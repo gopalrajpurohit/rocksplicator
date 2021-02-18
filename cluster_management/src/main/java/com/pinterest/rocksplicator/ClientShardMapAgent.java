@@ -21,7 +21,7 @@ package com.pinterest.rocksplicator;
 import com.pinterest.rocksplicator.config.ConfigCodecEnum;
 import com.pinterest.rocksplicator.config.ConfigCodecs;
 import com.pinterest.rocksplicator.config.ConfigStore;
-import com.pinterest.rocksplicator.shardmapagent.ClusterShardMapAgentHandler;
+import com.pinterest.rocksplicator.shardmapagent.ClusterShardMapAgentManager;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
@@ -61,16 +61,16 @@ import java.util.function.Supplier;
  *    com.pinterest.rocksplicator.ShardMapAgent \\
  *    --shardMapZkSvr zookeeper-server:2181 \\
  *    --clusters=rocksplicator-cluster-name \\
- *    --shardMapDir=directory_where_shard_maps_are_downloaded
+ *    --shardMapDownloadDir=directory_where_shard_maps_are_downloaded
  */
-public class ShardMapAgent {
+public class ClientShardMapAgent {
 
-  private static final Logger LOG = LoggerFactory.getLogger(ShardMapAgent.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ClientShardMapAgent.class);
 
   private static final String shardMapZkSvrArg = "shardMapZkSvr";
   private static final String clustersArg = "clusters";
   private static final String clustersFileArg = "clustersFile";
-  private static final String shardMapDirArg = "shardMapDir";
+  private static final String shardMapDownloadDirArg = "shardMapDownloadDir";
 
   private static Options constructCommandLineOptions() {
     Option shardMapZkSvrOption =
@@ -97,18 +97,18 @@ public class ShardMapAgent {
     clustersFileOption.setRequired(false);
     clustersFileOption.setArgName(clustersFileArg);
 
-    Option shardMapDirOption = OptionBuilder
-        .withLongOpt(shardMapDirArg)
+    Option shardMapDownloadDirOption = OptionBuilder
+        .withLongOpt(shardMapDownloadDirArg)
         .withDescription("Provide directory to download shardMap for each cluster").create();
-    shardMapDirOption.setArgs(1);
-    shardMapDirOption.setRequired(true);
-    shardMapDirOption.setArgName(shardMapDirArg);
+    shardMapDownloadDirOption.setArgs(1);
+    shardMapDownloadDirOption.setRequired(true);
+    shardMapDownloadDirOption.setArgName(shardMapDownloadDirArg);
 
     Options options = new Options();
     options.addOption(shardMapZkSvrOption)
         .addOption(clustersOption)
         .addOption(clustersFileOption)
-        .addOption(shardMapDirOption);
+        .addOption(shardMapDownloadDirOption);
 
     return options;
   }
@@ -120,14 +120,14 @@ public class ShardMapAgent {
   }
 
   public static void main(String[] args) throws Exception {
-    org.apache.log4j.Logger.getRootLogger().setLevel(Level.WARN);
+    org.apache.log4j.Logger.getRootLogger().setLevel(Level.INFO);
     BasicConfigurator.configure(new ConsoleAppender(
         new PatternLayout("%d{HH:mm:ss.SSS} [%t] %-5p %30.30c - %m%n")
     ));
     CommandLine cmd = processCommandLineArgs(args);
 
     final String zkConnectString = cmd.getOptionValue(shardMapZkSvrArg);
-    final String shardMapDownloadDir = cmd.getOptionValue(shardMapDirArg);
+    final String shardMapDownloadDir = cmd.getOptionValue(shardMapDownloadDirArg);
     final String csClusters = cmd.getOptionValue(clustersArg, "");
     final String clustersFile = cmd.getOptionValue(clustersFileArg, "");
 
@@ -164,8 +164,8 @@ public class ShardMapAgent {
       };
     }
 
-    ClusterShardMapAgentHandler handler =
-        new ClusterShardMapAgentHandler(zkConnectString, shardMapDownloadDir, clustersSupplier);
+    ClusterShardMapAgentManager handler =
+        new ClusterShardMapAgentManager(zkConnectString, shardMapDownloadDir, clustersSupplier);
 
     Runtime.getRuntime().addShutdownHook(new Thread() {
       @Override
@@ -178,6 +178,7 @@ public class ShardMapAgent {
       }
     });
 
+    LOG.error("ShardMapAgent running");
     Thread.currentThread().join();
   }
 }
