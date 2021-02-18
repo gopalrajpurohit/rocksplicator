@@ -22,6 +22,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.concurrent.TimeUnit;
 
 public class ClusterShardMapAgentTest {
 
@@ -41,10 +42,14 @@ public class ClusterShardMapAgentTest {
     zkShardMapClient =
         CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryOneTime(2000));
     zkShardMapClient.start();
+    zkShardMapClient.blockUntilConnected(60, TimeUnit.SECONDS);
   }
 
   @Test
   public void testClusterShardMapAgent() throws Exception {
+    int TIME_MILLIS_SLEEP = 250;
+
+
     JSONObject topLevel = new JSONObject();
     JSONObject shard_map = new JSONObject();
 
@@ -54,19 +59,19 @@ public class ClusterShardMapAgentTest {
     shard_map.put(RESOURCE_1, new JSONObject());
 
     writeDataToZK(RESOURCE_1, topLevel);
-    ClusterShardMapAgent agent =
+    ClusterShardMapAgent clusterShardMapAgent =
         new ClusterShardMapAgent(zkTestServer.getConnectString(), CLUSTER_NAME, "target/shardmap");
 
-    agent.startNotification();
+    clusterShardMapAgent.startNotification();
 
     JSONObject shard_map1 = getDataFromFile("target/shardmap/" + CLUSTER_NAME);
     shard_map.remove(RESOURCE_1);
-    Thread.sleep(500);
+    Thread.sleep(TIME_MILLIS_SLEEP);
     assertTrue(shard_map1.containsKey(RESOURCE_1));
 
     shard_map.put(RESOURCE_2, new JSONObject());
     writeDataToZK(RESOURCE_2, topLevel);
-    Thread.sleep(500);
+    Thread.sleep(TIME_MILLIS_SLEEP);
     JSONObject shard_map2 = getDataFromFile("target/shardmap/" + CLUSTER_NAME);
     shard_map.remove(RESOURCE_2);
     assertTrue(shard_map2.containsKey(RESOURCE_1));
@@ -74,7 +79,7 @@ public class ClusterShardMapAgentTest {
 
     shard_map.put(RESOURCE_3, new JSONObject());
     writeDataToZK(RESOURCE_3, topLevel);
-    Thread.sleep(500);
+    Thread.sleep(TIME_MILLIS_SLEEP);
     JSONObject shard_map3 = getDataFromFile("target/shardmap/" + CLUSTER_NAME);
     shard_map.remove(RESOURCE_3);
     assertTrue(shard_map3.containsKey(RESOURCE_1));
@@ -82,20 +87,20 @@ public class ClusterShardMapAgentTest {
     assertTrue(shard_map3.containsKey(RESOURCE_3));
 
     removeDataFromZK(RESOURCE_1);
-    Thread.sleep(500);
+    Thread.sleep(TIME_MILLIS_SLEEP);
     JSONObject shard_map4 = getDataFromFile("target/shardmap/" + CLUSTER_NAME);
     assertFalse(shard_map4.containsKey(RESOURCE_1));
     assertTrue(shard_map4.containsKey(RESOURCE_2));
     assertTrue(shard_map4.containsKey(RESOURCE_3));
 
     removeDataFromZK(RESOURCE_3);
-    Thread.sleep(500);
+    Thread.sleep(TIME_MILLIS_SLEEP);
     JSONObject shard_map5 = getDataFromFile("target/shardmap/" + CLUSTER_NAME);
     assertFalse(shard_map5.containsKey(RESOURCE_1));
     assertTrue(shard_map5.containsKey(RESOURCE_2));
     assertFalse(shard_map5.containsKey(RESOURCE_3));
 
-    agent.close();
+    clusterShardMapAgent.close();
   }
 
   private JSONObject getDataFromFile(String filePath) throws Exception {
