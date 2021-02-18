@@ -21,6 +21,7 @@ package com.pinterest.rocksplicator.shardmapagent;
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
+import com.pinterest.rocksplicator.ShardMapAgent;
 import com.pinterest.rocksplicator.codecs.CodecException;
 import com.pinterest.rocksplicator.codecs.ZkGZIPCompressedShardMapCodec;
 import com.pinterest.rocksplicator.utils.ZkPathUtils;
@@ -34,6 +35,8 @@ import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
 import org.apache.curator.retry.BoundedExponentialBackoffRetry;
 import org.apache.curator.utils.CloseableExecutorService;
 import org.json.simple.JSONObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.File;
@@ -51,6 +54,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ClusterShardMapAgent implements Closeable {
+
+  private static final Logger LOG = LoggerFactory.getLogger(ShardMapAgent.class);
 
   private final boolean CACHE_DATA = true;
   private final boolean DO_NOT_COMPRESS = false;
@@ -96,6 +101,7 @@ public class ClusterShardMapAgent implements Closeable {
 
   public void startNotification() throws Exception {
     final AtomicBoolean initialized = new AtomicBoolean(false);
+    LOG.error(String.format("Initializing shardMap for cluster=%s", clusterName));
     this.pathChildrenCache.getListenable()
         .addListener(new PathChildrenCacheListener() {
           @Override
@@ -148,6 +154,7 @@ public class ClusterShardMapAgent implements Closeable {
     while (!initialized.get()) {
       Thread.sleep(100);
     }
+    LOG.error(String.format("Initialized shardMap for cluster=%s", clusterName));
   }
 
   private void add(String resourcePath, byte[] data) {
@@ -184,6 +191,18 @@ public class ClusterShardMapAgent implements Closeable {
     }
   }
 
+  /**
+   * TODO: grajpurohit : potential to improve and make it more efficient.
+   *
+   * If this becomes too heavy, we may consider a better approach by
+   * 1. enqueue dump calls in a queue.
+   * 2. a separate thread to wake up and watch the queue...
+   * 3. If there n items in the queue, discard first n-1 items and pickup first
+   * one after discarding all but last one.
+   * 4. Only process the last call and dump the data from shardMapsByResource..
+   * This will prevent multiple updates to the file, when there are very fast changes
+   * coming in but we can't keep up with dumping the data on the disk.
+   */
   private void dump() {
     try {
       Map<String, JSONObject> localCopy = new HashMap<>(this.shardMapsByResources);
@@ -200,8 +219,12 @@ public class ClusterShardMapAgent implements Closeable {
       try {
         File tempFile = File.createTempFile(
             clusterName,
-            Long.toString(System.currentTimeMillis()),
+            "-" + Long.toString(System.currentTimeMillis()),
             new File(tempShardMapDir));
+
+        LOG.error(String.format(
+            "Dumping new shard_map for cluster=%s at file_location: %s",
+            clusterName, tempFile.getPath()));
 
         FileWriter fileWriter = new FileWriter(tempFile);
         fileWriter.write(clusterShardMap.toJSONString());
@@ -209,17 +232,21 @@ public class ClusterShardMapAgent implements Closeable {
 
         // Now move the dumped data file to intended file.
         File finalDestinationFile = new File(shardMapDir, clusterName);
+        LOG.error(String.format(
+            "Moving shard_map file for cluster=%s from: %s -> to: %s",
+            clusterName, tempFile.getPath(),
+            finalDestinationFile.getPath()));
+
         try {
           Files.move(tempFile.toPath(), finalDestinationFile.toPath(), ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException ae) {
           Files.move(tempFile.toPath(), finalDestinationFile.toPath(), REPLACE_EXISTING);
         }
-
       } catch (IOException e) {
-        e.printStackTrace();
+        LOG.error(String.format("Error dumping shard_map for cluster=%s", clusterName), e);
       }
     } catch (Throwable throwable) {
-
+      LOG.error(String.format("Error dumping shard_map for cluster=%s", clusterName), throwable);
     }
   }
 

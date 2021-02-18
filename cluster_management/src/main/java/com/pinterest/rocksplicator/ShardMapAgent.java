@@ -44,6 +44,25 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Supplier;
 
+/**
+ * A Java agent deployed as side-car along with the clients or application that needs routing
+ * data downloaded from the zk, as published by the zk based publisher.
+ *
+ * It can watch multiple cluster's shard_map data. The clusters can be either provided as a static
+ * comman separated list or as JSON_ARRAY formatted file. If the names of clusters to fetch
+ * shard_map data for is provided through file, the agent will watch for any changes in file
+ * and corresponding to that it will either starting watching any new clusters added or stop
+ * watching any clusters that are removed from the file.
+ *
+ * This can also be used as a tool to manually download a cluster's latest shard_map and dump it
+ * to the specified directory. by running command as
+ *
+ * java -cp cluster_management/target/cluster_management-0.0.1-SNAPSHOT-jar-with-dependencies.jar \\
+ *    com.pinterest.rocksplicator.ShardMapAgent \\
+ *    --shardMapZkSvr zookeeper-server:2181 \\
+ *    --clusters=rocksplicator-cluster-name \\
+ *    --shardMapDir=directory_where_shard_maps_are_downloaded
+ */
 public class ShardMapAgent {
 
   private static final Logger LOG = LoggerFactory.getLogger(ShardMapAgent.class);

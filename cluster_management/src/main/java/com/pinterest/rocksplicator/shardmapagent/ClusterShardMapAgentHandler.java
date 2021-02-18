@@ -1,4 +1,25 @@
+/// Copyright 2021 Pinterest Inc.
+///
+/// Licensed under the Apache License, Version 2.0 (the "License");
+/// you may not use this file except in compliance with the License.
+/// You may obtain a copy of the License at
+///
+/// http://www.apache.org/licenses/LICENSE-2.0
+
+/// Unless required by applicable law or agreed to in writing, software
+/// distributed under the License is distributed on an "AS IS" BASIS,
+/// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+/// See the License for the specific language governing permissions and
+/// limitations under the License.
+
+//
+// @author Gopal Rajpurohit (grajpurohit@pinterest.com)
+//
+
 package com.pinterest.rocksplicator.shardmapagent;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -11,6 +32,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 public class ClusterShardMapAgentHandler implements Closeable {
+
+  private static final Logger LOG = LoggerFactory.getLogger(ClusterShardMapAgentHandler.class);
 
   private final String shardMapDir;
   private final String zkShardMapSvr;
@@ -34,7 +57,11 @@ public class ClusterShardMapAgentHandler implements Closeable {
     scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
       @Override
       public void run() {
-        update();
+        try {
+          update();
+        } catch (Throwable throwable) {
+          LOG.error("Error while updating cluster to watch list");
+        }
       }
     }, 60, 60, TimeUnit.SECONDS);
   }
@@ -52,6 +79,7 @@ public class ClusterShardMapAgentHandler implements Closeable {
       }
 
       try {
+        LOG.error(String.format("Stop Watching cluster: %s", cluster));
         clusterAgents.remove(cluster).close();
       } catch (Throwable throwable) {
         throwable.printStackTrace();
@@ -66,8 +94,8 @@ public class ClusterShardMapAgentHandler implements Closeable {
       }
 
       try {
-        ClusterShardMapAgent agent =
-            new ClusterShardMapAgent(this.zkShardMapSvr, cluster, shardMapDir);
+        LOG.error(String.format("Start Watching cluster: %s", cluster));
+        ClusterShardMapAgent agent = new ClusterShardMapAgent(this.zkShardMapSvr, cluster, shardMapDir);
         agent.startNotification();
         clusterAgents.put(cluster, agent);
       } catch (Exception e) {
@@ -88,6 +116,7 @@ public class ClusterShardMapAgentHandler implements Closeable {
     }
     for (String cluster : clusterAgents.keySet()) {
       try {
+        LOG.error(String.format("Closing: Stop Watching cluster: %s", cluster));
         clusterAgents.get(cluster).close();
       } catch (IOException ioe) {
         ioe.printStackTrace();
