@@ -186,7 +186,7 @@ public class ClusterShardMapAgent implements Closeable {
           }
         }
       }
-    }, 0, 100, TimeUnit.MILLISECONDS);
+    }, 0, 250, TimeUnit.MILLISECONDS);
   }
 
   private void addOrUpdateResourceShardMap(String resourcePath, byte[] data) {

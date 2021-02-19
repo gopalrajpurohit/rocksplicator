@@ -65,7 +65,7 @@ public class ClusterShardMapAgentTest {
 
   @Test
   public void testClusterShardMapAgent() throws Exception {
-    int TIME_MILLIS_SLEEP = 250;
+    int TIME_MILLIS_SLEEP = 2000;
 
     JSONObject topLevel = new JSONObject();
     JSONObject shard_map = new JSONObject();
