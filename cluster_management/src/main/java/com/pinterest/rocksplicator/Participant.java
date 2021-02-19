@@ -284,7 +284,7 @@ public class Participant {
      * start with downloading initial shard_map for this cluster.
      */
     if (!(shardMapZkSvr.isEmpty() || shardMapDownloadDir.isEmpty())) {
-      ClusterShardMapAgent clusterShardMapAgent = new ClusterShardMapAgent(shardMapZkSvr, clusterName, shardMapDownloadDir);
+      ClusterShardMapAgent clusterShardMapAgent = new ClusterShardMapAgent(shardMapZkSvr, clusterName, shardMapDownloadDir, false);
       clusterShardMapAgent.startNotification();
       Runtime.getRuntime().addShutdownHook(new Thread() {
         @Override

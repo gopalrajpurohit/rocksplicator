@@ -22,7 +22,9 @@ import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 import com.pinterest.rocksplicator.codecs.CodecException;
+import com.pinterest.rocksplicator.codecs.ZkBZIP2CompressedShardMapCodec;
 import com.pinterest.rocksplicator.codecs.ZkGZIPCompressedShardMapCodec;
+import com.pinterest.rocksplicator.codecs.ZkShardMapCodec;
 import com.pinterest.rocksplicator.utils.ZkPathUtils;
 
 import org.apache.curator.framework.CuratorFramework;
@@ -70,11 +72,16 @@ public class ClusterShardMapAgent implements Closeable {
   private final CuratorFramework zkShardMapClient;
   private final PathChildrenCache pathChildrenCache;
   private final ConcurrentHashMap<String, JSONObject> shardMapsByResources;
-  private final ZkGZIPCompressedShardMapCodec gzipCodec;
+  private final boolean bZipped;
+  private final ZkShardMapCodec zkShardMapCompressedCodec;
   private final ScheduledExecutorService dumperExecutorService;
   private final AtomicInteger numPendingNotifications;
 
-  public ClusterShardMapAgent(String zkConnectString, String clusterName, String shardMapDir)
+  public ClusterShardMapAgent(
+      String zkConnectString,
+      String clusterName,
+      String shardMapDir,
+      boolean bzipped)
       throws Exception {
     this.clusterName = clusterName;
     this.shardMapDir = shardMapDir;
@@ -89,11 +96,17 @@ public class ClusterShardMapAgent implements Closeable {
     this.zkShardMapClient.start();
     this.zkShardMapClient.blockUntilConnected(60, TimeUnit.SECONDS);
     this.shardMapsByResources = new ConcurrentHashMap<>();
-    this.gzipCodec = new ZkGZIPCompressedShardMapCodec();
+
+    this.bZipped = bzipped;
+    if (this.bZipped) {
+      this.zkShardMapCompressedCodec = new ZkBZIP2CompressedShardMapCodec();
+    } else {
+      this.zkShardMapCompressedCodec = new ZkGZIPCompressedShardMapCodec();
+    }
 
     this.pathChildrenCache = new PathChildrenCache(
         zkShardMapClient,
-        ZkPathUtils.getClusterShardMapParentPath(this.clusterName),
+        ZkPathUtils.getClusterShardMapParentPath(this.clusterName, this.bZipped),
         CACHE_DATA, DO_NOT_COMPRESS,
         new CloseableExecutorService(Executors.newSingleThreadExecutor()));
 
@@ -187,7 +200,7 @@ public class ClusterShardMapAgent implements Closeable {
       }
       String resourceName = splits[splits.length - 1];
       try {
-        JSONObject jsonObject = gzipCodec.decode(data);
+        JSONObject jsonObject = zkShardMapCompressedCodec.decode(data);
         this.shardMapsByResources.put(resourceName, jsonObject);
       } catch (CodecException e) {
         LOG.error(String.format(

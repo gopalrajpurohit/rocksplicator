@@ -84,10 +84,14 @@ public class ShardMapPublisherBuilder {
 
     LOG.error(String.format("Publish to zk server is enabled zkSvr: %s", zkShardMapConnectString));
     ShardMapPublisher<JSONObject>
-        zkShardMapPublisher =
-        new ZkBasedPerResourceShardMapPublisher(clusterName, zkShardMapConnectString);
+        zkGZipShardMapPublisher =
+        new ZkBasedPerResourceShardMapPublisher(clusterName, zkShardMapConnectString, false);
+
+    ShardMapPublisher<JSONObject>
+        zkBZip2ShardMapPublisher =
+        new ZkBasedPerResourceShardMapPublisher(clusterName, zkShardMapConnectString, true);
 
     return new ParallelShardMapPublisher<JSONObject>(
-        ImmutableList.of(defaultPublisher, zkShardMapPublisher));
+        ImmutableList.of(defaultPublisher, zkGZipShardMapPublisher, zkBZip2ShardMapPublisher));
   }
 }

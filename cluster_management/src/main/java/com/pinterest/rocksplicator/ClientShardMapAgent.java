@@ -71,6 +71,7 @@ public class ClientShardMapAgent {
   private static final String clustersArg = "clusters";
   private static final String clustersFileArg = "clustersFile";
   private static final String shardMapDownloadDirArg = "shardMapDownloadDir";
+  private static final String bzipEnabledArg = "bzipEnabled";
 
   private static Options constructCommandLineOptions() {
     Option shardMapZkSvrOption =
@@ -104,10 +105,18 @@ public class ClientShardMapAgent {
     shardMapDownloadDirOption.setRequired(true);
     shardMapDownloadDirOption.setArgName(shardMapDownloadDirArg);
 
+    Option bzipEnabledOption = OptionBuilder
+        .withLongOpt(bzipEnabledArg)
+        .withDescription("Enable watching bzip compressed path").create();
+    bzipEnabledOption.setArgs(0);
+    bzipEnabledOption.setRequired(false);
+    bzipEnabledOption.setArgName(bzipEnabledArg);
+
     Options options = new Options();
     options.addOption(shardMapZkSvrOption)
         .addOption(clustersOption)
         .addOption(clustersFileOption)
+        .addOption(bzipEnabledOption)
         .addOption(shardMapDownloadDirOption);
 
     return options;
@@ -130,6 +139,7 @@ public class ClientShardMapAgent {
     final String shardMapDownloadDir = cmd.getOptionValue(shardMapDownloadDirArg);
     final String csClusters = cmd.getOptionValue(clustersArg, "");
     final String clustersFile = cmd.getOptionValue(clustersFileArg, "");
+    final boolean bzipEnabled = cmd.hasOption(bzipEnabledArg);
 
     Preconditions.checkArgument(!(csClusters.isEmpty() && clustersFile.isEmpty()));
 
@@ -165,7 +175,8 @@ public class ClientShardMapAgent {
     }
 
     ClusterShardMapAgentManager handler =
-        new ClusterShardMapAgentManager(zkConnectString, shardMapDownloadDir, clustersSupplier);
+        new ClusterShardMapAgentManager(zkConnectString, shardMapDownloadDir, clustersSupplier,
+            bzipEnabled);
 
     Runtime.getRuntime().addShutdownHook(new Thread() {
       @Override

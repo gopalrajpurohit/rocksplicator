@@ -13,6 +13,10 @@
 # limitations under the License.
 #
 
+//
+// @author Gopal Rajpurohit (grajpurohit@pinterest.com)
+//
+
 namespace java com.pinterest.rocksplicator.thrift.commons.io
 
 enum SerializationProtocol {
@@ -23,7 +27,8 @@ enum SerializationProtocol {
 enum CompressionAlgorithm {
   UNCOMPRESSED = 0,
   SNAPPY = 1,
-  GZIP = 2
+  GZIP = 2,
+  BZIP2 = 3
 }
 
 struct WrappedData {

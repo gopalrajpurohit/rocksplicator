@@ -19,13 +19,19 @@
 package com.pinterest.rocksplicator.utils;
 
 public class ZkPathUtils {
-  private static final String BASE_PATH_PER_RESOURCE_SHARD_MAP
+  private static final String BASE_PATH_PER_RESOURCE_GZIPPED_SHARD_MAP
       = "/rocksplicator-shard_map/gzipped-json/byResource";
+  private static final String BASE_PATH_PER_RESOURCE_BZIPPED_SHARD_MAP
+      = "/rocksplicator-shard_map/bzip2-json/byResource";
 
-  public static String getClusterShardMapParentPath(String clusterName) {
-    return String.format("%s/%s", BASE_PATH_PER_RESOURCE_SHARD_MAP, clusterName);
+  public static String getClusterShardMapParentPath(String clusterName, boolean bzipped) {
+    return String.format("%s/%s",
+        (bzipped)? BASE_PATH_PER_RESOURCE_BZIPPED_SHARD_MAP : BASE_PATH_PER_RESOURCE_GZIPPED_SHARD_MAP,
+        clusterName);
   }
-  public static String getClusterResourceShardMapPath(String clusterName, String resourceName) {
-    return String.format("%s/%s/%s", BASE_PATH_PER_RESOURCE_SHARD_MAP, clusterName, resourceName);
+  public static String getClusterResourceShardMapPath(String clusterName, String resourceName, boolean bzipped) {
+    return String.format("%s/%s/%s",
+        (bzipped) ? BASE_PATH_PER_RESOURCE_BZIPPED_SHARD_MAP : BASE_PATH_PER_RESOURCE_GZIPPED_SHARD_MAP,
+        clusterName, resourceName);
   }
 }

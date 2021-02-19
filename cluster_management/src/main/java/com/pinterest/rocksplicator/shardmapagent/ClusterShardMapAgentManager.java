@@ -37,6 +37,7 @@ public class ClusterShardMapAgentManager implements Closeable {
 
   private final String shardMapDir;
   private final String zkShardMapSvr;
+  private final boolean bzipped;
   private final Supplier<Set<String>> clustersSupplier;
   private final ConcurrentHashMap<String, ClusterShardMapAgent> clusterAgents;
   private final ScheduledExecutorService scheduledExecutorService;
@@ -44,11 +45,13 @@ public class ClusterShardMapAgentManager implements Closeable {
   public ClusterShardMapAgentManager(
       final String zkShardMapSvr,
       final String shardMapDir,
-      final Supplier<Set<String>> clustersSupplier) {
+      final Supplier<Set<String>> clustersSupplier,
+      final boolean bzipped) {
     this.zkShardMapSvr = zkShardMapSvr;
     this.shardMapDir = shardMapDir;
     this.clustersSupplier = clustersSupplier;
     this.clusterAgents = new ConcurrentHashMap<>();
+    this.bzipped = bzipped;
 
     updateClusterHandlers();
 
@@ -91,7 +94,7 @@ public class ClusterShardMapAgentManager implements Closeable {
         try {
           LOG.error(String.format("Start Watching cluster: %s", cluster));
           ClusterShardMapAgent agent =
-              new ClusterShardMapAgent(this.zkShardMapSvr, cluster, shardMapDir);
+              new ClusterShardMapAgent(this.zkShardMapSvr, cluster, shardMapDir, bzipped);
           clusterAgents.put(cluster, agent);
           clusterAgents.get(cluster).startNotification();
         } catch (Exception e) {

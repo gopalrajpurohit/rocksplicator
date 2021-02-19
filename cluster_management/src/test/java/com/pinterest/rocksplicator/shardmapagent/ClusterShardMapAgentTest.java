@@ -77,7 +77,7 @@ public class ClusterShardMapAgentTest {
 
     writeDataToZK(RESOURCE_1, topLevel);
     ClusterShardMapAgent clusterShardMapAgent =
-        new ClusterShardMapAgent(zkTestServer.getConnectString(), CLUSTER_NAME, "target/shardmap");
+        new ClusterShardMapAgent(zkTestServer.getConnectString(), CLUSTER_NAME, "target/shardmap", false);
 
     clusterShardMapAgent.startNotification();
 
@@ -137,11 +137,11 @@ public class ClusterShardMapAgentTest {
 
   private void removeDataFromZK(String resource) throws Exception {
     zkShardMapClient.delete()
-        .forPath(ZkPathUtils.getClusterResourceShardMapPath(CLUSTER_NAME, resource));
+        .forPath(ZkPathUtils.getClusterResourceShardMapPath(CLUSTER_NAME, resource, false));
   }
 
   private void writeDataToZK(String resource, JSONObject topLevel) throws Exception {
-    String zkPath = ZkPathUtils.getClusterResourceShardMapPath(CLUSTER_NAME, resource);
+    String zkPath = ZkPathUtils.getClusterResourceShardMapPath(CLUSTER_NAME, resource, false);
     Stat stat = zkShardMapClient.checkExists().creatingParentsIfNeeded().forPath(zkPath);
     if (stat == null) {
       zkShardMapClient.create().creatingParentsIfNeeded()

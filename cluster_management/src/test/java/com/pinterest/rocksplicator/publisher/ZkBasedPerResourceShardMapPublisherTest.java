@@ -56,7 +56,7 @@ public class ZkBasedPerResourceShardMapPublisherTest {
     List<ExternalView> externalViews = ImmutableList.of(view1, view2, view3);
 
     ZkBasedPerResourceShardMapPublisher publisher = new ZkBasedPerResourceShardMapPublisher(
-        CLUSTER_NAME, zkTestServer.getConnectString(), true);
+        CLUSTER_NAME, zkTestServer.getConnectString(), false, true);
 
     // First test storing single resource.
     JSONObject shard_map = new JSONObject();
@@ -120,7 +120,7 @@ public class ZkBasedPerResourceShardMapPublisherTest {
   }
 
   private JSONObject getData(String resource) throws Exception {
-    String zkPath = ZkPathUtils.getClusterResourceShardMapPath(CLUSTER_NAME, resource);
+    String zkPath = ZkPathUtils.getClusterResourceShardMapPath(CLUSTER_NAME, resource, false);
     byte[] data = zkClient.getData().forPath(zkPath);
     return new ZkGZIPCompressedShardMapCodec().decode(data);
   }

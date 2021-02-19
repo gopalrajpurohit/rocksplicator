@@ -4,20 +4,21 @@ import com.pinterest.rocksplicator.thrift.commons.io.CompressionAlgorithm;
 
 import org.json.simple.JSONObject;
 
-public class ZkGZIPCompressedShardMapCodec extends ZkShardMapCodec {
+public class ZkBZIP2CompressedShardMapCodec extends ZkShardMapCodec {
 
   private static final Codec<JSONObject, byte[]> baseCodec = new JSONObjectCodec();
-  private static final Codec<JSONObject, byte[]> gzipCompressedCoded =
-      Codecs.getCompressedCodec(baseCodec, CompressionAlgorithm.GZIP);
+  private static final Codec<JSONObject, byte[]> bzippedCompressedCoded =
+      Codecs.getCompressedCodec(baseCodec, CompressionAlgorithm.BZIP2);
 
 
   @Override
   public JSONObject decode(byte[] data) throws CodecException {
-    return gzipCompressedCoded.decode(data);
+    return bzippedCompressedCoded.decode(data);
   }
 
   @Override
   public byte[] encode(JSONObject obj) throws CodecException {
-    return gzipCompressedCoded.encode(obj);
+    return bzippedCompressedCoded.encode(obj);
   }
 }
+

@@ -45,6 +45,9 @@ public class Codecs {
       case SNAPPY:
         compressedCodec = new SnappyCompressionCodec<>(baseCodec);
         break;
+      case BZIP2:
+        compressedCodec = new BZip2CompressionCodec<>(baseCodec);
+        break;
       default:
         throw new RuntimeException(
             String.format("compression algorithm: %s not implemented", compressionAlgorithm));
@@ -60,7 +63,7 @@ public class Codecs {
     ThriftCodec<S> baseCodec = null;
     switch (serializationProtocol) {
       case BINARY:
-        baseCodec = new ThriftCodec<>(thriftClazz, new TBinaryProtocol.Factory());
+        baseCodec = new ThriftCodec<>(thriftClazz, new TBinaryProtocol.Factory(true, true));
         break;
       case COMPACT:
         baseCodec = new ThriftCodec<>(thriftClazz, new TCompactProtocol.Factory());

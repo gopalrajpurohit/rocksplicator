@@ -18,7 +18,9 @@
 
 package com.pinterest.rocksplicator.publisher;
 
+import com.pinterest.rocksplicator.codecs.ZkBZIP2CompressedShardMapCodec;
 import com.pinterest.rocksplicator.codecs.ZkGZIPCompressedShardMapCodec;
+import com.pinterest.rocksplicator.codecs.ZkShardMapCodec;
 import com.pinterest.rocksplicator.utils.ZkPathUtils;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -58,7 +60,8 @@ public class ZkBasedPerResourceShardMapPublisher implements ShardMapPublisher<JS
   private static final Logger LOG =
       LoggerFactory.getLogger(ZkBasedPerResourceShardMapPublisher.class);
 
-  private final ZkGZIPCompressedShardMapCodec gzipCodec;
+  private final ZkShardMapCodec zkShardMapCompressedCodec;
+  private final boolean bzipped;
   private final String clusterName;
   private final String zkShardMapConnectString;
   private final CuratorFramework zkShardMapClient;
@@ -69,7 +72,14 @@ public class ZkBasedPerResourceShardMapPublisher implements ShardMapPublisher<JS
   public ZkBasedPerResourceShardMapPublisher(
       final String clusterName,
       final String zkShardMapConnectString) {
-    this(clusterName, zkShardMapConnectString, false);
+    this(clusterName, zkShardMapConnectString, false, false);
+  }
+
+  public ZkBasedPerResourceShardMapPublisher(
+      final String clusterName,
+      final String zkShardMapConnectString,
+      final boolean bzipped) {
+    this(clusterName, zkShardMapConnectString, bzipped, false);
   }
 
 
@@ -77,6 +87,7 @@ public class ZkBasedPerResourceShardMapPublisher implements ShardMapPublisher<JS
   ZkBasedPerResourceShardMapPublisher(
       final String clusterName,
       final String zkShardMapConnectString,
+      final boolean bzipped,
       final boolean syncPublish) {
     this.clusterName = Preconditions.checkNotNull(clusterName);
     this.zkShardMapConnectString = Preconditions.checkNotNull(zkShardMapConnectString);
@@ -85,8 +96,12 @@ public class ZkBasedPerResourceShardMapPublisher implements ShardMapPublisher<JS
     /**
      * This is fixed at the moment.
      */
-    this.gzipCodec = new ZkGZIPCompressedShardMapCodec();
-
+    this.bzipped = bzipped;
+    if (bzipped) {
+      this.zkShardMapCompressedCodec = new ZkBZIP2CompressedShardMapCodec();
+    } else {
+      this.zkShardMapCompressedCodec = new ZkGZIPCompressedShardMapCodec();
+    }
     this.zkShardMapClient = CuratorFrameworkFactory.newClient(this.zkShardMapConnectString,
         new BoundedExponentialBackoffRetry(100, 5000, 10));
 
@@ -212,8 +227,8 @@ public class ZkBasedPerResourceShardMapPublisher implements ShardMapPublisher<JS
         LOG.error(String.format(
             "Publishing shard_map / resource_map to zk=%s cluster: %s, resource: %s",
             zkShardMapConnectString, clusterName, resourceName));
-        byte[] serializedCompressedJson = gzipCodec.encode(topLevelJSONObject);
-        String zkPath = ZkPathUtils.getClusterResourceShardMapPath(clusterName, resourceName);
+        byte[] serializedCompressedJson = zkShardMapCompressedCodec.encode(topLevelJSONObject);
+        String zkPath = ZkPathUtils.getClusterResourceShardMapPath(clusterName, resourceName, bzipped);
         Stat stat = zkShardMapClient.checkExists().creatingParentsIfNeeded().forPath(zkPath);
         if (stat == null) {
           zkShardMapClient.create().creatingParentsIfNeeded()
@@ -232,7 +247,7 @@ public class ZkBasedPerResourceShardMapPublisher implements ShardMapPublisher<JS
      * This is only used for testing purpose
      */
     if (syncPublish) {
-      while (! result.isDone()) {
+      while (!result.isDone()) {
         try {
           Thread.sleep(10);
         } catch (InterruptedException e) {
@@ -251,7 +266,7 @@ public class ZkBasedPerResourceShardMapPublisher implements ShardMapPublisher<JS
       final Set<String> keepTheseResources) {
     Future<?> result = getExecutorService(clusterName).submit(() -> {
       try {
-        String zkPath = ZkPathUtils.getClusterShardMapParentPath(clusterName);
+        String zkPath = ZkPathUtils.getClusterShardMapParentPath(clusterName, bzipped);
         Stat stat = zkShardMapClient.checkExists().creatingParentsIfNeeded().forPath(zkPath);
         if (stat == null) {
           return;
@@ -276,7 +291,7 @@ public class ZkBasedPerResourceShardMapPublisher implements ShardMapPublisher<JS
           Future<?> perResourceResult = getExecutorService(resourceName).submit(() -> {
             try {
               String zkChildPath = ZkPathUtils.getClusterResourceShardMapPath(
-                  clusterName, resourceName);
+                  clusterName, resourceName, bzipped);
               zkShardMapClient.delete().forPath(zkChildPath);
             } catch (Exception exp) {
               LOG.error(String.format(
@@ -289,7 +304,7 @@ public class ZkBasedPerResourceShardMapPublisher implements ShardMapPublisher<JS
            * This is only used for testing purpose
            */
           if (syncPublish) {
-            while (! perResourceResult.isDone()) {
+            while (!perResourceResult.isDone()) {
               try {
                 Thread.sleep(10);
               } catch (InterruptedException e) {
@@ -309,7 +324,7 @@ public class ZkBasedPerResourceShardMapPublisher implements ShardMapPublisher<JS
      * This is only used for testing purpose
      */
     if (syncPublish) {
-      while (! result.isDone()) {
+      while (!result.isDone()) {
         try {
           Thread.sleep(10);
         } catch (InterruptedException e) {
