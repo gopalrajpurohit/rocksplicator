@@ -10,15 +10,19 @@ import com.pinterest.rocksplicator.thrift.shardmap.CShardMap;
 import com.pinterest.rocksplicator.thrift.shardmap.TShardMap;
 
 import com.google.common.base.Stopwatch;
+import com.google.common.hash.Hashing;
+import com.google.common.math.IntMath;
 import org.json.simple.JSONObject;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.testng.collections.Lists;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class ThriftShardMapTest {
@@ -59,7 +63,57 @@ public class ThriftShardMapTest {
         return new SimpleJsonObjectDecoder().decode(data);
       }
     };
-    print(jsonCodec, jsonShardMap, "JShardMap  Textual\t\t");
+    Codec<JSONObject, byte[]>
+        snappyCodec =
+        Codecs.getCompressedCodec(jsonCodec, CompressionAlgorithm.SNAPPY);
+    Codec<JSONObject, byte[]>
+        gzippedCodec =
+        Codecs.getCompressedCodec(jsonCodec, CompressionAlgorithm.GZIP);
+    Codec<JSONObject, byte[]>
+        bzippedCodec =
+        Codecs.getCompressedCodec(jsonCodec, CompressionAlgorithm.BZIP2);
+
+    /**
+     print(jsonCodec, jsonShardMap, "JShardMap  Textual\t\t");
+     print(snappyCodec, jsonShardMap, "JShardMap  Snappy\t\t");
+     print(gzippedCodec, jsonShardMap, "JShardMap  GZIP\t\t\t");
+     print(bzippedCodec, jsonShardMap, "JShardMap  BZIP2\t\t");
+     */
+
+    for (Object resourceObj : jsonShardMap.keySet()) {
+      String resource = (String) resourceObj;
+      JSONObject resourceMap = (JSONObject) jsonShardMap.get(resource);
+      JSONObject newShardMap = new JSONObject();
+      newShardMap.put(resource, resourceMap);
+
+      print(jsonCodec, newShardMap, "JShardMap  Textual\t\t");
+      print(snappyCodec, newShardMap, "JShardMap  Snappy\t\t");
+      print(gzippedCodec, newShardMap, "JShardMap  GZIP\t\t\t");
+      print(bzippedCodec, newShardMap, "JShardMap  BZIP2\t\t");
+      System.out.println();
+    }
+
+    int numShards = 30;
+    List<JSONObject> jsonMaps = Lists.newArrayList(numShards);
+    for (int i = 0; i < numShards; ++i) {
+      jsonMaps.add(new JSONObject());
+    }
+    for (Object resourceObj : jsonShardMap.keySet()) {
+      String resource = (String) resourceObj;
+      JSONObject resourceMap = (JSONObject) jsonShardMap.get(resource);
+      jsonMaps.get(
+          IntMath.mod(
+              Hashing.md5().newHasher().putBytes(resource.getBytes()).hash().asInt(),
+              numShards)).put(resource, resourceMap);
+    }
+
+    for (JSONObject newShardMap : jsonMaps) {
+      print(jsonCodec, newShardMap, "JShardMap  Textual\t\t");
+      print(snappyCodec, newShardMap, "JShardMap  Snappy\t\t");
+      print(gzippedCodec, newShardMap, "JShardMap  GZIP\t\t\t");
+      print(bzippedCodec, newShardMap, "JShardMap  BZIP2\t\t");
+      System.out.println();
+    }
   }
 
 
