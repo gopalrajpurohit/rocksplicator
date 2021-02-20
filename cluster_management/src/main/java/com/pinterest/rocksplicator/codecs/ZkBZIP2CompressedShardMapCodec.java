@@ -6,7 +6,7 @@ import org.json.simple.JSONObject;
 
 public class ZkBZIP2CompressedShardMapCodec extends ZkShardMapCodec {
 
-  private static final Codec<JSONObject, byte[]> baseCodec = new JSONObjectCodec();
+  private static final Codec<JSONObject, byte[]> baseCodec = new SimpleJsonObjectByteArrayCodec();
   private static final Codec<JSONObject, byte[]> bzippedCompressedCoded =
       Codecs.getCompressedCodec(baseCodec, CompressionAlgorithm.BZIP2);
 
