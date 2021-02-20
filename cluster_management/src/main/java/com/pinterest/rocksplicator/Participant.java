@@ -29,7 +29,6 @@ import com.pinterest.rocksplicator.task.BackupTaskFactory;
 import com.pinterest.rocksplicator.task.DedupTaskFactory;
 import com.pinterest.rocksplicator.task.RestoreTaskFactory;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
