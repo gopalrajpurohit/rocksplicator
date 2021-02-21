@@ -23,6 +23,7 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 import com.pinterest.rocksplicator.codecs.CodecException;
 import com.pinterest.rocksplicator.codecs.ZkGZIPCompressedShardMapCodec;
+import com.pinterest.rocksplicator.codecs.ZkShardMapCodec;
 import com.pinterest.rocksplicator.utils.ZkPathUtils;
 
 import org.apache.curator.framework.CuratorFramework;
@@ -70,7 +71,7 @@ public class ClusterShardMapAgent implements Closeable {
   private final CuratorFramework zkShardMapClient;
   private final PathChildrenCache pathChildrenCache;
   private final ConcurrentHashMap<String, JSONObject> shardMapsByResources;
-  private final ZkGZIPCompressedShardMapCodec gzipCodec;
+  private final ZkShardMapCodec zkShardMapCompressedCodec;
   private final ScheduledExecutorService dumperExecutorService;
   private final AtomicInteger numPendingNotifications;
 
@@ -89,7 +90,7 @@ public class ClusterShardMapAgent implements Closeable {
     this.zkShardMapClient.start();
     this.zkShardMapClient.blockUntilConnected(60, TimeUnit.SECONDS);
     this.shardMapsByResources = new ConcurrentHashMap<>();
-    this.gzipCodec = new ZkGZIPCompressedShardMapCodec();
+    this.zkShardMapCompressedCodec = new ZkGZIPCompressedShardMapCodec();
 
     this.pathChildrenCache = new PathChildrenCache(
         zkShardMapClient,
@@ -193,7 +194,7 @@ public class ClusterShardMapAgent implements Closeable {
       }
       String resourceName = splits[splits.length - 1];
       try {
-        JSONObject jsonObject = gzipCodec.decode(data);
+        JSONObject jsonObject = zkShardMapCompressedCodec.decode(data);
         this.shardMapsByResources.put(resourceName, jsonObject);
       } catch (CodecException e) {
         LOG.error(String.format(

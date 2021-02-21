@@ -29,6 +29,7 @@ import com.pinterest.rocksplicator.task.BackupTaskFactory;
 import com.pinterest.rocksplicator.task.DedupTaskFactory;
 import com.pinterest.rocksplicator.task.RestoreTaskFactory;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -281,6 +282,8 @@ public class Participant {
     /**
      * If the zkShardMapServer is given and the download directory is given,
      * start with downloading initial shard_map for this cluster.
+     * This is true irrespective of whether a spectator runs in embedded mode
+     * for the given participant cluster.
      */
     if (!(shardMapZkSvr.isEmpty() || shardMapDownloadDir.isEmpty())) {
       ClusterShardMapAgent clusterShardMapAgent = new ClusterShardMapAgent(shardMapZkSvr, clusterName, shardMapDownloadDir);

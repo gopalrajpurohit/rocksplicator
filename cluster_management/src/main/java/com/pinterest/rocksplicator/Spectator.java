@@ -26,6 +26,7 @@ import com.pinterest.rocksplicator.eventstore.LeaderEventsLogger;
 import com.pinterest.rocksplicator.eventstore.LeaderEventsLoggerImpl;
 import com.pinterest.rocksplicator.monitoring.mbeans.RocksplicatorMonitor;
 import com.pinterest.rocksplicator.publisher.ShardMapPublisherBuilder;
+import com.pinterest.rocksplicator.shardmapagent.ClusterShardMapAgent;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -65,6 +66,7 @@ public class Spectator {
   private static final String hostPort = "port";
   private static final String configPostUrl = "configPostUrl";
   private static final String shardMapZkSvrArg = "shardMapZkSvr";
+  private static final String shardMapDownloadDirArg = "shardMapDownloadDir";
 
   private static final String handoffEventHistoryzkSvr = "handoffEventHistoryzkSvr";
   private static final String handoffEventHistoryConfigPath = "handoffEventHistoryConfigPath";
@@ -74,7 +76,6 @@ public class Spectator {
   private static LeaderEventsLogger staticClientLeaderEventsLogger = null;
   private static ClientShardMapLeaderEventLoggerDriver
       staticClientShardMapLeaderEventLoggerDriver = null;
-
 
   private final HelixManager helixManager;
   private final RocksplicatorMonitor monitor;
@@ -119,6 +120,15 @@ public class Spectator {
     shardMapZkSvrOption.setArgs(1);
     shardMapZkSvrOption.setRequired(false);
     shardMapZkSvrOption.setArgName(shardMapZkSvrArg);
+
+    Option shardMapDownloadDirOption = OptionBuilder
+        .withLongOpt(shardMapDownloadDirArg)
+        .withDescription("Provide directory to download shardMap for each cluster [Optional]"
+            + " If this option is provided, also must provide shardMapZkSvr option to download"
+            + " cluster sghard_map data from").create();
+    shardMapDownloadDirOption.setArgs(1);
+    shardMapDownloadDirOption.setRequired(false);
+    shardMapDownloadDirOption.setArgName(shardMapDownloadDirArg);
 
     Option handoffEventHistoryzkSvrOption =
         OptionBuilder.withLongOpt(handoffEventHistoryzkSvr)
@@ -166,6 +176,7 @@ public class Spectator {
         .addOption(portOption)
         .addOption(configPostUrlOption)
         .addOption(shardMapZkSvrOption)
+        .addOption(shardMapDownloadDirOption)
         .addOption(handoffEventHistoryzkSvrOption)
         .addOption(handoffEventHistoryConfigPathOption)
         .addOption(handoffEventHistoryConfigTypeOption)
@@ -195,6 +206,7 @@ public class Spectator {
     final String port = cmd.getOptionValue(hostPort);
     final String postUrl = cmd.getOptionValue(configPostUrl, "");
     final String shardMapZkSvr = cmd.getOptionValue(shardMapZkSvrArg, "");
+    final String shardMapDownloadDir = cmd.getOptionValue(shardMapDownloadDirArg, "");
     final String instanceName = host + "_" + port;
 
     final String zkEventHistoryStr = cmd.getOptionValue(handoffEventHistoryzkSvr, "");
@@ -213,6 +225,26 @@ public class Spectator {
 
       staticClientShardMapLeaderEventLoggerDriver = new ClientShardMapLeaderEventLoggerDriver(
           clusterName, shardMapPath, staticClientLeaderEventsLogger, zkEventHistoryStr);
+    }
+
+    /**
+     * If the zkShardMapServer is given and the download directory is given,
+     * start with downloading initial shard_map for this cluster.
+     */
+    if (!(shardMapZkSvr.isEmpty() || shardMapDownloadDir.isEmpty())) {
+      ClusterShardMapAgent
+          clusterShardMapAgent = new ClusterShardMapAgent(shardMapZkSvr, clusterName, shardMapDownloadDir);
+      clusterShardMapAgent.startNotification();
+      Runtime.getRuntime().addShutdownHook(new Thread() {
+        @Override
+        public void run() {
+          try {
+            clusterShardMapAgent.close();
+          } catch (IOException e) {
+            e.printStackTrace();
+          }
+        }
+      });
     }
 
     LOG.error("Starting spectator with ZK:" + zkConnectString);
