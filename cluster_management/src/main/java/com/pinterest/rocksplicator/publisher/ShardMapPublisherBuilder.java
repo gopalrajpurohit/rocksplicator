@@ -59,11 +59,6 @@ public class ShardMapPublisherBuilder {
     return this;
   }
 
-  public ShardMapPublisherBuilder withZkShardMap(String zkShardMapConnectString) {
-    this.zkShardMapConnectString = zkShardMapConnectString;
-    return this;
-  }
-
   public ShardMapPublisher<JSONObject> build() {
     List<ShardMapPublisher<String>> publishers = new ArrayList<>();
 
