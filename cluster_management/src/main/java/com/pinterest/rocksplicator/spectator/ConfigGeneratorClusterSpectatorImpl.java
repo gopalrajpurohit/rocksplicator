@@ -27,11 +27,6 @@ import com.pinterest.rocksplicator.shardmapagent.ClusterShardMapAgent;
 import org.apache.helix.HelixManager;
 import org.apache.helix.HelixManagerFactory;
 import org.apache.helix.InstanceType;
-import org.apache.log4j.BasicConfigurator;
-import org.apache.log4j.ConsoleAppender;
-import org.apache.log4j.Level;
-import org.apache.log4j.PatternLayout;
-import org.apache.log4j.RollingFileAppender;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +39,7 @@ import java.io.IOException;
  * In the current version, it doesn't support LeaderEvents handoff reporting.
  */
 public class ConfigGeneratorClusterSpectatorImpl implements ClusterSpectator {
+
   private final Logger LOGGER;
   private final String zkHelixConnectString;
   private final String clusterName;
@@ -111,7 +107,8 @@ public class ConfigGeneratorClusterSpectatorImpl implements ClusterSpectator {
        * Enable publishing per resource shardMap to zk.
        */
       if (shardMapZkSvr != null && !shardMapZkSvr.isEmpty()) {
-        LOGGER.info(String.format("cluster=%s : Enabled posting to zkSvr: %s", clusterName, shardMapZkSvr));
+        LOGGER.info(
+            String.format("cluster=%s : Enabled posting to zkSvr: %s", clusterName, shardMapZkSvr));
         publisherBuilder = publisherBuilder.withZkShardMap(shardMapZkSvr);
       }
       this.shardMapPublisher = publisherBuilder.build();
@@ -160,22 +157,27 @@ public class ConfigGeneratorClusterSpectatorImpl implements ClusterSpectator {
         this.shardMapPublisher,
         this.monitor, null);
 
+    LOGGER.info(String.format("Starging HelixManager Notification to ConfigGenerator"
+        + " to zkSvr: %s for cluster=%s", zkHelixConnectString, clusterName));
     this.helixManager.addExternalViewChangeListener(configGenerator);
     this.helixManager.addConfigChangeListener(configGenerator);
-    this.helixManager.addLiveInstanceChangeListener(configGenerator);
-
-    // Sleep for 1 seconds, before invoking the shardMapAgent.
-    Thread.sleep(1000);
 
     /**
      * If the zkShardMapServer is given and the download directory is given,
      * start with downloading initial shard_map for this cluster.
      */
-    if (!(shardMapZkSvr.isEmpty() || shardMapDownloadDir.isEmpty()) && this.clusterShardMapAgent == null) {
-      this.clusterShardMapAgent = new ClusterShardMapAgent(shardMapZkSvr, clusterName, shardMapDownloadDir);
+    if (this.clusterShardMapAgent == null) {
+      if (shardMapZkSvr != null && !shardMapZkSvr.isEmpty()) {
+        if (shardMapDownloadDir != null && !shardMapDownloadDir.isEmpty()) {
+          this.clusterShardMapAgent =
+              new ClusterShardMapAgent(shardMapZkSvr, clusterName, shardMapDownloadDir);
+          this.clusterShardMapAgent.startNotification();
+          LOGGER.info(
+              String.format("Successfully started ShardMapAgent for cluster=%s", clusterName));
+        }
+      }
     }
-
-    clusterShardMapAgent.startNotification();
+    LOGGER.info(String.format("Started Spectator ConfigGenerator for cluster: %s", clusterName));
   }
 
   /**
