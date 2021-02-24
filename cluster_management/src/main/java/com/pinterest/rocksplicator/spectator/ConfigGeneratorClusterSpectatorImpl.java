@@ -22,11 +22,19 @@ import com.pinterest.rocksplicator.ConfigGenerator;
 import com.pinterest.rocksplicator.monitoring.mbeans.RocksplicatorMonitor;
 import com.pinterest.rocksplicator.publisher.ShardMapPublisher;
 import com.pinterest.rocksplicator.publisher.ShardMapPublisherBuilder;
+import com.pinterest.rocksplicator.shardmapagent.ClusterShardMapAgent;
 
 import org.apache.helix.HelixManager;
 import org.apache.helix.HelixManagerFactory;
 import org.apache.helix.InstanceType;
+import org.apache.log4j.BasicConfigurator;
+import org.apache.log4j.ConsoleAppender;
+import org.apache.log4j.Level;
+import org.apache.log4j.PatternLayout;
+import org.apache.log4j.RollingFileAppender;
 import org.json.simple.JSONObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
@@ -36,12 +44,13 @@ import java.io.IOException;
  * In the current version, it doesn't support LeaderEvents handoff reporting.
  */
 public class ConfigGeneratorClusterSpectatorImpl implements ClusterSpectator {
-
+  private final Logger LOGGER;
   private final String zkHelixConnectString;
   private final String clusterName;
   private final String instanceName;
   private final String configPostUri;
   private final String shardMapZkSvr;
+  private final String shardMapDownloadDir;
 
   /**
    * Live State.
@@ -50,18 +59,22 @@ public class ConfigGeneratorClusterSpectatorImpl implements ClusterSpectator {
   private ShardMapPublisher<JSONObject> shardMapPublisher = null;
   private ConfigGenerator configGenerator = null;
   private RocksplicatorMonitor monitor = null;
+  private ClusterShardMapAgent clusterShardMapAgent = null;
 
   public ConfigGeneratorClusterSpectatorImpl(
       final String zkHelixConnectString,
       final String clusterName,
       final String instanceName,
       final String configPostUri,
-      final String zkShardMapConnectString) {
+      final String zkShardMapConnectString,
+      final String shardMapDownloadDir) {
     this.zkHelixConnectString = zkHelixConnectString;
     this.clusterName = clusterName;
     this.instanceName = instanceName;
     this.configPostUri = configPostUri;
     this.shardMapZkSvr = zkShardMapConnectString;
+    this.shardMapDownloadDir = shardMapDownloadDir;
+    this.LOGGER = LoggerFactory.getLogger(String.format("ConfigGenerator-%s", clusterName));
   }
 
   /**
@@ -70,6 +83,9 @@ public class ConfigGeneratorClusterSpectatorImpl implements ClusterSpectator {
   @Override
   public synchronized void prepare() {
     if (this.helixManager == null) {
+      LOGGER.info(String.format("Initializing Spectator HelixManager for zkSvr: %s cluster=%s",
+          zkHelixConnectString, clusterName));
+
       this.helixManager = HelixManagerFactory.getZKHelixManager(
           clusterName,
           instanceName,
@@ -87,6 +103,7 @@ public class ConfigGeneratorClusterSpectatorImpl implements ClusterSpectator {
       if (configPostUri != null &&
           !configPostUri.isEmpty() &&
           (configPostUri.startsWith("http://") || configPostUri.startsWith("https://"))) {
+        LOGGER.info(String.format("cluster=%s : Enabled posting to uri: %s", configPostUri));
         publisherBuilder.withPostUrl(configPostUri);
       }
 
@@ -94,13 +111,27 @@ public class ConfigGeneratorClusterSpectatorImpl implements ClusterSpectator {
        * Enable publishing per resource shardMap to zk.
        */
       if (shardMapZkSvr != null && !shardMapZkSvr.isEmpty()) {
+        LOGGER.info(String.format("cluster=%s : Enabled posting to zkSvr: %s", clusterName, shardMapZkSvr));
         publisherBuilder = publisherBuilder.withZkShardMap(shardMapZkSvr);
       }
       this.shardMapPublisher = publisherBuilder.build();
     }
+
     if (monitor == null) {
       this.monitor = new RocksplicatorMonitor(this.clusterName, this.instanceName);
     }
+
+    Runtime.getRuntime().addShutdownHook(new Thread() {
+      @Override
+      public void run() {
+        try {
+          ConfigGeneratorClusterSpectatorImpl.this.stop();
+          ConfigGeneratorClusterSpectatorImpl.this.release();
+        } catch (Throwable throwable) {
+          LOGGER.error(String.format("Error in shutdownHook, cluster=%s", clusterName), throwable);
+        }
+      }
+    });
   }
 
   /**
@@ -110,6 +141,9 @@ public class ConfigGeneratorClusterSpectatorImpl implements ClusterSpectator {
   public synchronized void start() throws Exception {
     // Start the spectator functionality
     prepare();
+
+    LOGGER.info(String.format("Connecting HelixManager to zkSvr: %s for cluster=%s",
+        zkHelixConnectString, clusterName));
     this.helixManager.connect();
 
     /**
@@ -129,6 +163,19 @@ public class ConfigGeneratorClusterSpectatorImpl implements ClusterSpectator {
     this.helixManager.addExternalViewChangeListener(configGenerator);
     this.helixManager.addConfigChangeListener(configGenerator);
     this.helixManager.addLiveInstanceChangeListener(configGenerator);
+
+    // Sleep for 1 seconds, before invoking the shardMapAgent.
+    Thread.sleep(1000);
+
+    /**
+     * If the zkShardMapServer is given and the download directory is given,
+     * start with downloading initial shard_map for this cluster.
+     */
+    if (!(shardMapZkSvr.isEmpty() || shardMapDownloadDir.isEmpty()) && this.clusterShardMapAgent == null) {
+      this.clusterShardMapAgent = new ClusterShardMapAgent(shardMapZkSvr, clusterName, shardMapDownloadDir);
+    }
+
+    clusterShardMapAgent.startNotification();
   }
 
   /**
@@ -185,6 +232,15 @@ public class ConfigGeneratorClusterSpectatorImpl implements ClusterSpectator {
     if (monitor != null) {
       this.monitor.close();
       this.monitor = null;
+    }
+
+    if (this.clusterShardMapAgent != null) {
+      try {
+        this.clusterShardMapAgent.close();
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+      this.clusterShardMapAgent = null;
     }
   }
 }

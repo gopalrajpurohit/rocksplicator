@@ -98,6 +98,16 @@ public class ZkBasedPerResourceShardMapPublisher implements ShardMapPublisher<JS
       throw new RuntimeException(e);
     }
 
+    try {
+      String clusterPath = ZkPathUtils.getClusterShardMapParentPath(clusterName);
+      Stat stat = zkShardMapClient.checkExists().creatingParentsIfNeeded().forPath(clusterPath);
+      if (stat == null) {
+        zkShardMapClient.create().creatingParentsIfNeeded().forPath(clusterPath, new byte[0]);
+      }
+    } catch (Throwable throwable) {
+      throw new RuntimeException(throwable);
+    }
+
     this.executorServices = Lists.newArrayListWithCapacity(MAX_THREADS);
     for (int i = 0; i < MAX_THREADS; ++i) {
       /**

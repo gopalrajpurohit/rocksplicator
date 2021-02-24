@@ -75,8 +75,7 @@ public class ClusterShardMapAgent implements Closeable {
   private final ScheduledExecutorService dumperExecutorService;
   private final AtomicInteger numPendingNotifications;
 
-  public ClusterShardMapAgent(String zkConnectString, String clusterName, String shardMapDir)
-      throws Exception {
+  public ClusterShardMapAgent(String zkConnectString, String clusterName, String shardMapDir) {
     this.clusterName = clusterName;
     this.shardMapDir = shardMapDir;
     this.tempShardMapDir = shardMapDir + "/" + ".temp";
@@ -88,7 +87,11 @@ public class ClusterShardMapAgent implements Closeable {
                 100, 10000, 10));
 
     this.zkShardMapClient.start();
-    this.zkShardMapClient.blockUntilConnected(60, TimeUnit.SECONDS);
+    try {
+      this.zkShardMapClient.blockUntilConnected(60, TimeUnit.SECONDS);
+    } catch (InterruptedException e) {
+      throw new RuntimeException();
+    }
     this.shardMapsByResources = new ConcurrentHashMap<>();
     this.zkShardMapCompressedCodec = new ZkGZIPCompressedShardMapCodec();
 

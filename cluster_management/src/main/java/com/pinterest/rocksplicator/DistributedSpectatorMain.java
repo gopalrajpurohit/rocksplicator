@@ -58,16 +58,16 @@ import java.util.Arrays;
  */
 
 public class DistributedSpectatorMain {
-
-  public static final String zkSvr = "zkSvr";
-  public static final String cluster = "cluster";
-  public static final String help = "help";
-  public static final String host = "host";
-  public static final String port = "port";
-  public static final String shardMapPostUriPattern = "shardMapPostUriPattern";
-  private static final String shardMapZkSvrArg = "shardMapZkSvr";
-
   private static final Logger logger = LoggerFactory.getLogger(DistributedSpectatorMain.class);
+
+  private static final String zkSvr = "zkSvr";
+  private static final String cluster = "cluster";
+  private static final String help = "help";
+  private static final String host = "host";
+  private static final String port = "port";
+  private static final String shardMapPostUriPattern = "shardMapPostUriPattern";
+  private static final String shardMapZkSvrArg = "shardMapZkSvr";
+  private static final String shardMapDownloadDirArg = "shardMapDownloadDir";
 
   // hack: OptionalBuilder is not thread safe
   @SuppressWarnings("static-access")
@@ -125,6 +125,15 @@ public class DistributedSpectatorMain {
     shardMapZkSvrOption.setRequired(false);
     shardMapZkSvrOption.setArgName(shardMapZkSvrArg);
 
+    Option shardMapDownloadDirOption = OptionBuilder
+        .withLongOpt(shardMapDownloadDirArg)
+        .withDescription("Provide directory to download shardMap for each cluster [Optional]"
+            + " If this option is provided, also must provide shardMapZkSvr option to download"
+            + " cluster sghard_map data from").create();
+    shardMapDownloadDirOption.setArgs(1);
+    shardMapDownloadDirOption.setRequired(false);
+    shardMapDownloadDirOption.setArgName(shardMapDownloadDirArg);
+
     Options options = new Options();
     options.addOption(helpOption)
         .addOption(zkServerOption)
@@ -132,7 +141,8 @@ public class DistributedSpectatorMain {
         .addOption(hostOption)
         .addOption(portOption)
         .addOption(shardMapPostUriPatternOption)
-        .addOption(shardMapZkSvrOption);
+        .addOption(shardMapZkSvrOption)
+        .addOption(shardMapDownloadDirOption);
 
     return options;
   }
@@ -165,7 +175,8 @@ public class DistributedSpectatorMain {
       final String clusterName,
       final String controllerName,
       final String shardMapPostUriPattern,
-      final String shardMapZkSvr) {
+      final String shardMapZkSvr,
+      final String shardMapDownloadDir) {
     HelixManager manager = null;
     try {
       manager = HelixManagerFactory.getZKHelixManager(
@@ -176,7 +187,10 @@ public class DistributedSpectatorMain {
 
       DistClusterSpectatorStateModelFactory stateModelFactory =
           new DistClusterSpectatorStateModelFactory(zkConnectString,
-              new ConfigGeneratorClusterSpectatorFactory(shardMapPostUriPattern, shardMapZkSvr));
+              new ConfigGeneratorClusterSpectatorFactory(
+                  shardMapPostUriPattern,
+                  shardMapZkSvr,
+                  shardMapDownloadDir));
 
       StateMachineEngine stateMach = manager.getStateMachineEngine();
       stateMach.registerStateModelFactory("LeaderStandby", stateModelFactory);
@@ -188,18 +202,19 @@ public class DistributedSpectatorMain {
   }
 
   public static void main(String[] args) throws Exception {
-    org.apache.log4j.Logger.getRootLogger().setLevel(Level.WARN);
+    org.apache.log4j.Logger.getRootLogger().setLevel(Level.INFO);
     BasicConfigurator.configure(new ConsoleAppender(
         new PatternLayout("%d{HH:mm:ss.SSS} [%t] %-5p %30.30c - %m%n")
     ));
 
     CommandLine cmd = processCommandLineArgs(args);
-    String zkConnectString = cmd.getOptionValue(zkSvr);
-    String clusterName = cmd.getOptionValue(cluster);
-    String hostName = cmd.getOptionValue(host);
-    Integer portInt = Integer.parseInt(cmd.getOptionValue(port));
-    String configPostUriPattern = cmd.getOptionValue(shardMapPostUriPattern, "");
+    final String zkConnectString = cmd.getOptionValue(zkSvr);
+    final String clusterName = cmd.getOptionValue(cluster);
+    final String hostName = cmd.getOptionValue(host);
+    final Integer portInt = Integer.parseInt(cmd.getOptionValue(port));
+    final String configPostUriPattern = cmd.getOptionValue(shardMapPostUriPattern, "");
     final String shardMapZkSvr = cmd.getOptionValue(shardMapZkSvrArg, "");
+    final String shardMapDownloadDir = cmd.getOptionValue(shardMapDownloadDirArg, "");
 
     String instanceId = String.format("%s_%d", hostName, portInt);
 
@@ -207,7 +222,7 @@ public class DistributedSpectatorMain {
         + clusterName + ", spectatorControllerName:" + instanceId + ", mode:" + "DISTRIBUTED");
 
     HelixManager manager =
-        startHelixController(zkConnectString, clusterName, instanceId, configPostUriPattern, shardMapZkSvr);
+        startHelixController(zkConnectString, clusterName, instanceId, configPostUriPattern, shardMapZkSvr, shardMapDownloadDir);
 
     Runtime.getRuntime().addShutdownHook(new HelixManagerShutdownHook(manager));
 
