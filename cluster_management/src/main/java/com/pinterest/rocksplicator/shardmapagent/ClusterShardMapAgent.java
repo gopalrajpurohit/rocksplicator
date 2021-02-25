@@ -23,7 +23,10 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 import com.pinterest.rocksplicator.codecs.CodecException;
 import com.pinterest.rocksplicator.codecs.ZkGZIPCompressedShardMapCodec;
+<<<<<<< HEAD
 import com.pinterest.rocksplicator.codecs.ZkShardMapCodec;
+=======
+>>>>>>> master
 import com.pinterest.rocksplicator.utils.ZkPathUtils;
 
 import org.apache.curator.framework.CuratorFramework;
