@@ -166,7 +166,7 @@ void invokeClass(JNIEnv* env,
   }
   if (!FLAGS_shard_map_zk_download_dir.empty()) {
     arguments.push_back(std::string("--shardMapDownloadDir"));
-    arguments.push_back(std::string(FLAGS_shard_map_zk_connect_string));
+    arguments.push_back(std::string(FLAGS_shard_map_zk_download_dir));
   }
   if (FLAGS_use_s3_backup) {
     arguments.push_back(std::string("--s3Bucket"));
