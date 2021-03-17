@@ -26,7 +26,6 @@
 #include <thread>
 #include <unordered_set>
 #include <vector>
-#include <map>
 
 #include "boost/filesystem.hpp"
 #include "common/identical_name_thread_factory.h"
@@ -36,6 +35,7 @@
 #include "common/network_util.h"
 #include "common/rocksdb_env_s3.h"
 #include "common/rocksdb_glogger/rocksdb_glogger.h"
+#include "common/segment_utils.h"
 #include "common/stats/stats.h"
 #include "common/thrift_router.h"
 #include "common/timer.h"
@@ -70,7 +70,7 @@ DEFINE_string(rocksdb_dir, "/tmp/",
 DEFINE_int32(num_hdfs_access_threads, 8,
              "The number of threads for backup or restore to/from HDFS");
 
-DEFINE_int32(port, 9090, "Port of the server");
+DECLARE_int32(port);
 
 DEFINE_string(shard_config_path, "",
              "Local path of file storing shard mapping for Aperture");
@@ -269,7 +269,7 @@ std::unique_ptr<::admin::ApplicationDBManager> CreateDBBasedOnConfig(
         continue;
       }
 
-      auto db_name = admin::SegmentToDbName(segment.first.c_str(), shard_id);
+      auto db_name = common::SegmentToDbName(segment.first.c_str(), shard_id);
       auto options = rocksdb_options(segment.first);
       auto db_future = GetRocksdbFuture(FLAGS_rocksdb_dir + db_name, options);
       std::unique_ptr<folly::SocketAddress> upstream_addr(nullptr);
@@ -580,7 +580,7 @@ void AdminHandler::async_tm_addDB(
     return;
   }
 
-  auto segment = admin::DbNameToSegment(request->db_name);
+  auto segment = common::DbNameToSegment(request->db_name);
   auto db_path = FLAGS_rocksdb_dir + request->db_name;
   rocksdb::Status status;
   if (request->overwrite) {
@@ -622,11 +622,19 @@ void AdminHandler::async_tm_addDB(
     }
   }
 
-  if (!writeMetaData(request->db_name, "", "")) {
-    std::string errMsg = "AddDB failed to write initial DBMetaData for " + request->db_name;
-    SetException(errMsg, admin::AdminErrorCode::DB_ADMIN_ERROR, &callback);
-    LOG(ERROR) << errMsg;
-    return;
+  // update meta if not exist
+  auto meta = getMetaData(request->db_name);
+  if (!meta.__isset.s3_bucket && !meta.__isset.s3_path &&
+      !meta.__isset.last_kafka_msg_timestamp_ms) {
+    LOG(INFO) << "No preivous meta exist, write a fresh meta to metadb for db: "
+              << request->db_name;
+    if (!writeMetaData(request->db_name, "", "")) {
+      std::string errMsg =
+          "AddDB failed to write initial DBMetaData for " + request->db_name;
+      SetException(errMsg, admin::AdminErrorCode::DB_ADMIN_ERROR, &callback);
+      LOG(ERROR) << errMsg;
+      return;
+    }
   }
 
   if (!db_manager_->addDB(request->db_name,
@@ -762,7 +770,7 @@ bool AdminHandler::restoreDBHelper(const std::string& db_name,
   }
 
   rocksdb::DB* rocksdb_db;
-  auto segment = admin::DbNameToSegment(db_name);
+  auto segment = common::DbNameToSegment(db_name);
   status = rocksdb::DB::Open(rocksdb_options_(segment), db_path, &rocksdb_db);
   if (!status.ok()) {
     e->errorCode = AdminErrorCode::DB_ERROR;
@@ -1189,7 +1197,7 @@ void AdminHandler::async_tm_restoreDBFromS3(
 
 
     rocksdb::DB* restore_db;
-    auto segment = admin::DbNameToSegment(request->db_name);
+    auto segment = common::DbNameToSegment(request->db_name);
     auto status = rocksdb::DB::Open(rocksdb_options_(segment), formatted_local_path, &restore_db);
     if (!status.ok()) {
       OKOrSetException(status, AdminErrorCode::DB_ERROR, &callback);
@@ -1268,18 +1276,6 @@ void AdminHandler::async_tm_checkDB(
         response.set_last_update_timestamp_ms(extractor.ms);
       }
     }
-  }
-
-  // TODO: get options as str for specified optionField
-
-  if (request->__isset.include_meta) {
-    auto meta = getMetaData(request->db_name);
-    std::map<std::string, std::string> metas;
-    metas["s3_bucket"] = meta.s3_bucket;
-    metas["s3_path"] = meta.s3_path;
-    metas["last_kafka_msg_timestamp_ms"] = std::to_string(meta.last_kafka_msg_timestamp_ms);
-    response.db_metas = metas;
-    response.__isset.db_metas = true;
   }
 
   callback->result(response);
@@ -1393,7 +1389,7 @@ void AdminHandler::async_tm_clearDB(
 
   removeDB(request->db_name, nullptr);
 
-  auto options = rocksdb_options_(admin::DbNameToSegment(request->db_name));
+  auto options = rocksdb_options_(common::DbNameToSegment(request->db_name));
   auto db_path = FLAGS_rocksdb_dir + request->db_name;
   LOG(INFO) << "Clearing DB: " << request->db_name;
   clearMetaData(request->db_name);
@@ -1524,6 +1520,12 @@ void AdminHandler::async_tm_addS3SstFilesToDB(
     LOG(INFO) << "Already hosting " << meta.s3_bucket << "/" << meta.s3_path;
     callback->result(AddS3SstFilesToDBResponse());
     return;
+  } else {
+    LOG(INFO) << folly::stringPrintf(
+        "Current meta, s3_bucket: %s, s3_path: %s. Update with, s3_bucket: %s, "
+        "s3_path: %s",
+        meta.s3_bucket.c_str(), meta.s3_path.c_str(),
+        request->s3_bucket.c_str(), request->s3_path.c_str());
   }
 
   bool ingest_behind = request->__isset.ingest_behind && request->ingest_behind;
@@ -1620,7 +1622,7 @@ void AdminHandler::async_tm_addS3SstFilesToDB(
 
   clearMetaData(request->db_name);
 
-  auto segment = admin::DbNameToSegment(request->db_name);
+  auto segment = common::DbNameToSegment(request->db_name);
   bool allow_overlapping_keys =
       allow_overlapping_keys_segments_.find(segment) !=
       allow_overlapping_keys_segments_.end();
@@ -1761,8 +1763,8 @@ void AdminHandler::async_tm_startMessageIngestion(
   }
 
   // Kafka partition to consume is the shard id in rocksdb.
-  const auto segment = DbNameToSegment(db_name);
-  const auto partition_id = ExtractShardId(db_name);
+  const auto segment = common::DbNameToSegment(db_name);
+  const auto partition_id = common::ExtractShardId(db_name);
 
   if (partition_id == -1) {
     e.message = "Invalid db_name: " + db_name;
