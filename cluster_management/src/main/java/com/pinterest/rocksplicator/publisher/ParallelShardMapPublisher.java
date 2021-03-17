@@ -28,7 +28,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -52,9 +51,9 @@ public class ParallelShardMapPublisher<T> implements ShardMapPublisher<T> {
   }
 
   @Override
-  public void publish(final Set<String> validResources,
-                      final List<ExternalView> externalViews,
-                      final T shardMap) {
+  public synchronized void publish(final Set<String> validResources,
+                                   final List<ExternalView> externalViews,
+                                   final T shardMap) {
     final CountDownLatch latch = new CountDownLatch(shardMapPublishers.size());
     for (int index = 0; index < shardMapPublishers.size(); ++index) {
       ShardMapPublisher<T> shardMapPublisher = shardMapPublishers.get(index);
