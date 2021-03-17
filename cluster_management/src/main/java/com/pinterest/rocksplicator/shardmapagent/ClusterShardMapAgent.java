@@ -178,22 +178,38 @@ public class ClusterShardMapAgent implements Closeable {
     this.dumperExecutorService.scheduleAtFixedRate(new Runnable() {
       @Override
       public void run() {
-        int pendingNotifications = numPendingNotifications.getAndSet(0);
-        if (pendingNotifications > 0) {
+        int pendingNotifications = 0;
+        while ((pendingNotifications = numPendingNotifications.getAndSet(0)) > 0) {
+          long currentTimeMillis = System.currentTimeMillis();
           LOG.info(String.format(
               "Coalesced shardMap notifications for cluster=%s (num_events=%d) ",
               clusterName, pendingNotifications));
           try {
+            // Sleep for at least a millisecond to give different timestamp of modification to next
+            // file. Note that this doesn't guarantee that the modification time of the file will
+            // be different, in case the underlying fs doesn't support that precision on
+            // modification timestamp of a file.
+            while (!(currentTimeMillis < System.currentTimeMillis())) {
+              Thread.sleep(1);
+            }
             writeShardMapFile();
             firstDumpComplete.countDown();
           } catch (Throwable throwable) {
+            LOG.error("Error while dumping shardMaps", throwable);
             // Never allow any error to propagate to kill scheduler thread, else subsequent
             // tasks will not be scheduled.
-            LOG.error("Error while dumping shardMaps", throwable);
+            // Add back the notifications that failed to be dumped...
+            numPendingNotifications.getAndAdd(pendingNotifications);
+
+            /**
+             * In case of error, we don't try to dump the data immediately, instead we wait for
+             * next execution of the timer thread.
+             */
+            return;
           }
         }
       }
-    }, 0, 100, TimeUnit.MILLISECONDS);
+    }, 0, 50, TimeUnit.MILLISECONDS);
     firstDumpComplete.await();
   }
 
@@ -296,19 +312,18 @@ public class ClusterShardMapAgent implements Closeable {
 
   @Override
   public void close() throws IOException {
-    dumperExecutorService.shutdown();
+    this.pathChildrenCache.close();
+    if (zkClientIsOwned && zkShardMapClient != null) {
+      this.zkShardMapClient.close();
+    }
 
+    dumperExecutorService.shutdown();
     while (!dumperExecutorService.isTerminated()) {
       try {
         dumperExecutorService.awaitTermination(100, TimeUnit.MILLISECONDS);
       } catch (InterruptedException e) {
         e.printStackTrace();
       }
-    }
-
-    this.pathChildrenCache.close();
-    if (zkClientIsOwned && zkShardMapClient != null) {
-      this.zkShardMapClient.close();
     }
   }
 }
