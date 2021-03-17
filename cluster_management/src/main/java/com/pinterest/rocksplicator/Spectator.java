@@ -27,10 +27,13 @@ import com.pinterest.rocksplicator.eventstore.LeaderEventsLoggerImpl;
 import com.pinterest.rocksplicator.monitoring.mbeans.RocksplicatorMonitor;
 import com.pinterest.rocksplicator.publisher.ShardMapPublisherBuilder;
 import com.pinterest.rocksplicator.shardmapagent.ClusterShardMapAgent;
+<<<<<<< HEAD
 
 import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+=======
+>>>>>>> grajpurohit/rocksplicator/client_agent_downloading_zk_compressed_shard_map
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -57,8 +60,13 @@ import org.apache.log4j.PatternLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+
 
 public class Spectator {
+
   private static final Logger LOG = LoggerFactory.getLogger(Spectator.class);
   private static final String zkServer = "zkSvr";
   private static final String cluster = "cluster";
@@ -71,15 +79,21 @@ public class Spectator {
   private static final String handoffEventHistoryzkSvr = "handoffEventHistoryzkSvr";
   private static final String handoffEventHistoryConfigPath = "handoffEventHistoryConfigPath";
   private static final String handoffEventHistoryConfigType = "handoffEventHistoryConfigType";
-  private static final String  handoffClientEventHistoryJsonShardMapPath = "handoffClientEventHistoryJsonShardMapPath";
+  private static final String
+      handoffClientEventHistoryJsonShardMapPath =
+      "handoffClientEventHistoryJsonShardMapPath";
 
   private static LeaderEventsLogger staticClientLeaderEventsLogger = null;
   private static ClientShardMapLeaderEventLoggerDriver
       staticClientShardMapLeaderEventLoggerDriver = null;
 
-
   private final HelixManager helixManager;
   private final RocksplicatorMonitor monitor;
+  private final String httpPostUri;
+  private final String shardMapZkSvr;
+  private final String shardMapDownloadDir;
+  private final String clusterName;
+  private final String instanceName;
   private LeaderEventsLogger spectatorLeaderEventsLogger;
 
   private ConfigGenerator configGenerator = null;
@@ -111,13 +125,15 @@ public class Spectator {
 
     // we keep this optional, so that we can test without posting to any url
     Option configPostUrlOption =
-        OptionBuilder.withLongOpt(configPostUrl).withDescription("URL to post config (Optional)").create();
+        OptionBuilder.withLongOpt(configPostUrl).withDescription("URL to post config (Optional)")
+            .create();
     configPostUrlOption.setArgs(1);
     configPostUrlOption.setRequired(false);
     configPostUrlOption.setArgName("URL to post config (Optional)");
 
     Option shardMapZkSvrOption =
-        OptionBuilder.withLongOpt(shardMapZkSvrArg).withDescription("Zk Server to post shard_map").create();
+        OptionBuilder.withLongOpt(shardMapZkSvrArg).withDescription("Zk Server to post shard_map")
+            .create();
     shardMapZkSvrOption.setArgs(1);
     shardMapZkSvrOption.setRequired(false);
     shardMapZkSvrOption.setArgName(shardMapZkSvrArg);
@@ -140,27 +156,30 @@ public class Spectator {
     handoffEventHistoryzkSvrOption.setArgName(
         "Zk connect string for logging state transitions for leader handoff profiling (Optional)");
 
-    Option  handoffEventHistoryConfigPathOption =
+    Option handoffEventHistoryConfigPathOption =
         OptionBuilder.withLongOpt(handoffEventHistoryConfigPath)
             .withDescription(
-                "local disk path to config containing resources to enable for handoff events history tracking")
+                "local disk path to config containing resources to enable for handoff events "
+                    + "history tracking")
             .create();
     handoffEventHistoryConfigPathOption.setArgs(1);
     handoffEventHistoryConfigPathOption.setRequired(false);
     handoffEventHistoryConfigPathOption.setArgName(
         "config path containing resources to enabled for handoff events history (Optional)");
 
-    Option  handoffEventHistoryConfigTypeOption =
+    Option handoffEventHistoryConfigTypeOption =
         OptionBuilder.withLongOpt(handoffEventHistoryConfigType)
             .withDescription(
-                "format of config for resources to track handoff events [LINE_TERMINATED / JSON_ARRAY]")
+                "format of config for resources to track handoff events [LINE_TERMINATED / "
+                    + "JSON_ARRAY]")
             .create();
     handoffEventHistoryConfigTypeOption.setArgs(1);
     handoffEventHistoryConfigTypeOption.setRequired(false);
     handoffEventHistoryConfigTypeOption.setArgName(
-        "format of config for resources to track handoff events [LINE_TERMINATED / JSON_ARRAY] (Optional)");
+        "format of config for resources to track handoff events [LINE_TERMINATED / JSON_ARRAY] "
+            + "(Optional)");
 
-    Option  handoffClientEventHistoryJsonShardMapPathOption =
+    Option handoffClientEventHistoryJsonShardMapPathOption =
         OptionBuilder.withLongOpt(handoffClientEventHistoryJsonShardMapPath)
             .withDescription(
                 "path to shard_map in json format, generated by Spectator")
@@ -249,18 +268,22 @@ public class Spectator {
     }
 
     LOG.error("Starting spectator with ZK:" + zkConnectString);
-    final Spectator spectator = new Spectator(zkConnectString, clusterName, instanceName,
+    final Spectator spectator = new Spectator(
+        zkConnectString, clusterName, instanceName,
+        postUrl, shardMapZkSvr, shardMapDownloadDir,
         spectatorLeaderEventsLogger);
 
-    CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkConnectString, new ExponentialBackoffRetry(1000, 3));
+    CuratorFramework
+        zkClient =
+        CuratorFrameworkFactory.newClient(zkConnectString, new ExponentialBackoffRetry(1000, 3));
 
     zkClient.getConnectionStateListenable().addListener(new ConnectionStateListener() {
       @Override
       public void stateChanged(CuratorFramework client, ConnectionState newState) {
-      // If the connection state changes to LOST/SUSPENDED, then it means it
-      // already lost the lock/would release the lock and the current leader
-      // role is not legal any more. Here we simply terminate it and rely
-      // on restarting to re-acquire the inter-process lock.
+        // If the connection state changes to LOST/SUSPENDED, then it means it
+        // already lost the lock/would release the lock and the current leader
+        // role is not legal any more. Here we simply terminate it and rely
+        // on restarting to re-acquire the inter-process lock.
         if (newState == ConnectionState.LOST || newState == ConnectionState.SUSPENDED) {
           LOG.error("ZK lock is lost and the process needs to be terminated");
           // Stop all the listeners before exiting
@@ -290,7 +313,7 @@ public class Spectator {
 
     try (Locker locker = new Locker(mutex)) {
       LOG.error("Obtained lock");
-      spectator.startListener(postUrl, shardMapZkSvr);
+      spectator.startListener();
       Thread.currentThread().join();
     } catch (RuntimeException e) {
       LOG.error("RuntimeException thrown by cluster " + clusterName, e);
@@ -301,11 +324,20 @@ public class Spectator {
   }
 
   public Spectator(String zkConnectString, String clusterName, String instanceName,
+                   String httpPostUri, String shardMapZkSvr, String shardMapDownloadDir,
                    LeaderEventsLogger spectatorLeaderEventsLogger) throws Exception {
-    helixManager = HelixManagerFactory.getZKHelixManager(clusterName, instanceName, InstanceType.SPECTATOR, zkConnectString);
+    this.clusterName = clusterName;
+    this.instanceName = instanceName;
+    this.httpPostUri = httpPostUri;
+    this.shardMapZkSvr = shardMapZkSvr;
+    this.shardMapDownloadDir = shardMapDownloadDir;
 
-    monitor = new RocksplicatorMonitor(clusterName, instanceName);
+    this.helixManager =
+        HelixManagerFactory
+            .getZKHelixManager(clusterName, instanceName, InstanceType.SPECTATOR, zkConnectString);
+    this.monitor = new RocksplicatorMonitor(clusterName, instanceName);
     this.spectatorLeaderEventsLogger = spectatorLeaderEventsLogger;
+
     helixManager.connect();
 
     Runtime.getRuntime().addShutdownHook(new Thread() {
@@ -320,12 +352,12 @@ public class Spectator {
     });
   }
 
-  private void startListener(String postUrl, String shardMapZkSvr) throws Exception {
+  private void startListener() throws Exception {
     if (this.configGenerator == null) {
       ShardMapPublisherBuilder publisherBuilder = ShardMapPublisherBuilder
           .create(helixManager.getClusterName()).withLocalDump();
-      if (postUrl != null && !postUrl.isEmpty()) {
-        publisherBuilder = publisherBuilder.withPostUrl(postUrl);
+      if (httpPostUri != null && !httpPostUri.isEmpty()) {
+        publisherBuilder = publisherBuilder.withPostUrl(httpPostUri);
       }
       if (shardMapZkSvr != null && !shardMapZkSvr.isEmpty()) {
         publisherBuilder = publisherBuilder.withZkShardMap(shardMapZkSvr);
@@ -342,6 +374,27 @@ public class Spectator {
        */
       helixManager.addExternalViewChangeListener(configGenerator);
       helixManager.addConfigChangeListener(configGenerator);
+
+      /**
+       * If the zkShardMapServer is given and the download directory is given,
+       * start downloading shard_map for this cluster.
+       */
+      if (!(shardMapZkSvr.isEmpty() || shardMapDownloadDir.isEmpty())) {
+        ClusterShardMapAgent
+            clusterShardMapAgent =
+            new ClusterShardMapAgent(shardMapZkSvr, null, clusterName, shardMapDownloadDir);
+        clusterShardMapAgent.startNotification();
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+          @Override
+          public void run() {
+            try {
+              clusterShardMapAgent.close();
+            } catch (IOException e) {
+              e.printStackTrace();
+            }
+          }
+        });
+      }
     }
   }
 
@@ -359,7 +412,7 @@ public class Spectator {
       } catch (IOException ioe) {
         LOG.error("Exception while closing ConfigGenertor", ioe);
       } finally {
-      configGenerator = null;
+        configGenerator = null;
       }
     }
 

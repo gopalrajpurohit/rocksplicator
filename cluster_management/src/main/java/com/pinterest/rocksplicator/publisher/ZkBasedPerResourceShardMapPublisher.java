@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -60,13 +61,17 @@ public class ZkBasedPerResourceShardMapPublisher implements ShardMapPublisher<JS
   private static final Logger LOG =
       LoggerFactory.getLogger(ZkBasedPerResourceShardMapPublisher.class);
 
+<<<<<<< HEAD
   private final ZkShardMapCodec zkShardMapCompressedCodec;
   private final boolean bzipped;
+=======
+  private final ZkShardMapCodec gzipCodec;
+>>>>>>> grajpurohit/rocksplicator/client_agent_downloading_zk_compressed_shard_map
   private final String clusterName;
   private final String zkShardMapConnectString;
   private final CuratorFramework zkShardMapClient;
   private final List<ExecutorService> executorServices;
-  private final ConcurrentHashMap<String, String> latestResourceToConfigMap;
+  private final ConcurrentMap<String, String> latestResourceToConfigMap;
   private final boolean syncPublish;
 
   public ZkBasedPerResourceShardMapPublisher(
@@ -81,7 +86,6 @@ public class ZkBasedPerResourceShardMapPublisher implements ShardMapPublisher<JS
       final boolean bzipped) {
     this(clusterName, zkShardMapConnectString, bzipped, false);
   }
-
 
   @VisibleForTesting
   ZkBasedPerResourceShardMapPublisher(
@@ -111,6 +115,16 @@ public class ZkBasedPerResourceShardMapPublisher implements ShardMapPublisher<JS
       this.zkShardMapClient.blockUntilConnected(60, TimeUnit.SECONDS);
     } catch (InterruptedException e) {
       throw new RuntimeException(e);
+    }
+
+    try {
+      String clusterPath = ZkPathUtils.getClusterShardMapParentPath(clusterName);
+      Stat stat = zkShardMapClient.checkExists().creatingParentsIfNeeded().forPath(clusterPath);
+      if (stat == null) {
+        zkShardMapClient.create().creatingParentsIfNeeded().forPath(clusterPath, new byte[0]);
+      }
+    } catch (Throwable throwable) {
+      throw new RuntimeException(throwable);
     }
 
     this.executorServices = Lists.newArrayListWithCapacity(MAX_THREADS);
@@ -205,7 +219,6 @@ public class ZkBasedPerResourceShardMapPublisher implements ShardMapPublisher<JS
       if (latestResourceMapStr != null && latestResourceMapStr.equals(currentResourceMapStr)) {
         return;
       }
-      latestResourceToConfigMap.put(resourceName, currentResourceMapStr);
 
       final JSONObject topLevelJSONObject = new JSONObject();
       final JSONObject metaBlock = new JSONObject();
@@ -236,6 +249,7 @@ public class ZkBasedPerResourceShardMapPublisher implements ShardMapPublisher<JS
         } else {
           zkShardMapClient.setData().forPath(zkPath, serializedCompressedJson);
         }
+        latestResourceToConfigMap.put(resourceName, currentResourceMapStr);
       } catch (Exception e) {
         LOG.error(String.format(
             "Error publishing shard_map / resource_map to zk cluster: %s, resource: %s",
@@ -287,6 +301,9 @@ public class ZkBasedPerResourceShardMapPublisher implements ShardMapPublisher<JS
           if (keepTheseResources.contains(resourceName)) {
             continue;
           }
+
+          // First remove the local cache
+          this.latestResourceToConfigMap.remove(resourceName);
 
           Future<?> perResourceResult = getExecutorService(resourceName).submit(() -> {
             try {

@@ -28,8 +28,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ShardMapPublisherBuilder {
+
   private static final Logger LOG =
-      LoggerFactory.getLogger(ZkBasedPerResourceShardMapPublisher.class);
+      LoggerFactory.getLogger(ShardMapPublisherBuilder.class);
 
   private final String clusterName;
   private String postUrl = null;
@@ -49,6 +50,11 @@ public class ShardMapPublisherBuilder {
     return this;
   }
 
+  public ShardMapPublisherBuilder withZkShardMap(String zkShardMapConnectString) {
+    this.zkShardMapConnectString = zkShardMapConnectString;
+    return this;
+  }
+
   public ShardMapPublisherBuilder withLocalDump() {
     this.enableLocalDump = true;
     return this;
@@ -56,11 +62,6 @@ public class ShardMapPublisherBuilder {
 
   public ShardMapPublisherBuilder withOutLocalDump() {
     this.enableLocalDump = false;
-    return this;
-  }
-
-  public ShardMapPublisherBuilder withZkShardMap(String zkShardMapConnectString) {
-    this.zkShardMapConnectString = zkShardMapConnectString;
     return this;
   }
 
@@ -75,14 +76,17 @@ public class ShardMapPublisherBuilder {
       LOG.error(String.format("Publish to local directory is enabled"));
       publishers.add(new LocalFileShardMapPublisher(enableLocalDump, clusterName));
     }
-    ShardMapPublisher<JSONObject> defaultPublisher = new DedupingShardMapPublisher(
-        new ParallelShardMapPublisher<String>(ImmutableList.copyOf(publishers)));
+
+    ShardMapPublisher<JSONObject> defaultPublisher =
+        new DedupingShardMapPublisher(
+            new ParallelShardMapPublisher<String>(ImmutableList.copyOf(publishers)));
 
     if (zkShardMapConnectString == null || zkShardMapConnectString.isEmpty()) {
       return defaultPublisher;
     }
 
     LOG.error(String.format("Publish to zk server is enabled zkSvr: %s", zkShardMapConnectString));
+<<<<<<< HEAD
     ShardMapPublisher<JSONObject>
         zkGZipShardMapPublisher =
         new ZkBasedPerResourceShardMapPublisher(clusterName, zkShardMapConnectString, false);
@@ -90,6 +94,10 @@ public class ShardMapPublisherBuilder {
     ShardMapPublisher<JSONObject>
         zkBZip2ShardMapPublisher =
         new ZkBasedPerResourceShardMapPublisher(clusterName, zkShardMapConnectString, true);
+=======
+    ShardMapPublisher<JSONObject> zkShardMapPublisher =
+        new ZkBasedPerResourceShardMapPublisher(clusterName, zkShardMapConnectString);
+>>>>>>> grajpurohit/rocksplicator/client_agent_downloading_zk_compressed_shard_map
 
     return new ParallelShardMapPublisher<JSONObject>(
         ImmutableList.of(defaultPublisher, zkGZipShardMapPublisher, zkBZip2ShardMapPublisher));

@@ -19,7 +19,12 @@
 package com.pinterest.rocksplicator.utils;
 
 public class ZkPathUtils {
+<<<<<<< HEAD
   private static final String BASE_PATH_PER_RESOURCE_GZIPPED_SHARD_MAP
+=======
+
+  private static final String BASE_PATH_PER_RESOURCE_SHARD_MAP
+>>>>>>> grajpurohit/rocksplicator/client_agent_downloading_zk_compressed_shard_map
       = "/rocksplicator-shard_map/gzipped-json/byResource";
   private static final String BASE_PATH_PER_RESOURCE_BZIPPED_SHARD_MAP
       = "/rocksplicator-shard_map/bzip2-json/byResource";
@@ -29,9 +34,15 @@ public class ZkPathUtils {
         (bzipped)? BASE_PATH_PER_RESOURCE_BZIPPED_SHARD_MAP : BASE_PATH_PER_RESOURCE_GZIPPED_SHARD_MAP,
         clusterName);
   }
+<<<<<<< HEAD
   public static String getClusterResourceShardMapPath(String clusterName, String resourceName, boolean bzipped) {
     return String.format("%s/%s/%s",
         (bzipped) ? BASE_PATH_PER_RESOURCE_BZIPPED_SHARD_MAP : BASE_PATH_PER_RESOURCE_GZIPPED_SHARD_MAP,
         clusterName, resourceName);
+=======
+
+  public static String getClusterResourceShardMapPath(String clusterName, String resourceName) {
+    return String.format("%s/%s/%s", BASE_PATH_PER_RESOURCE_SHARD_MAP, clusterName, resourceName);
+>>>>>>> grajpurohit/rocksplicator/client_agent_downloading_zk_compressed_shard_map
   }
 }

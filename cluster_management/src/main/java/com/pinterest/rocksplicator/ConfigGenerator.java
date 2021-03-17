@@ -42,7 +42,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -163,9 +162,8 @@ import java.util.stream.Collectors;
  }
  }
  </code>
-
-
  */
+
 public class ConfigGenerator extends RoutingTableProvider implements CustomCodeCallbackHandler,
                                                                      Closeable {
 
@@ -236,7 +234,8 @@ public class ConfigGenerator extends RoutingTableProvider implements CustomCodeC
           LOG.error("Received notification: " + notificationContext.getChangeType());
           if (notificationContext.getChangeType() == HelixConstants.ChangeType.EXTERNAL_VIEW) {
             generateShardConfig();
-          } else if (notificationContext.getChangeType() == HelixConstants.ChangeType.INSTANCE_CONFIG) {
+          } else if (notificationContext.getChangeType()
+              == HelixConstants.ChangeType.INSTANCE_CONFIG) {
             if (updateDisabledHosts()) {
               generateShardConfig();
             }
@@ -285,14 +284,13 @@ public class ConfigGenerator extends RoutingTableProvider implements CustomCodeC
     filterOutTaskResources(resources);
 
     // Resources starting with PARTICIPANT_LEADER is for HelixCustomCodeRunner
-    resources = resources.stream().filter(r -> ! r.startsWith("PARTICIPANT_LEADER")).collect(Collectors.toList());
+    resources =
+        resources.stream().filter(r -> !r.startsWith("PARTICIPANT_LEADER"))
+            .collect(Collectors.toList());
 
     Set<String> existingHosts = new HashSet<String>();
 
-    List<ExternalView> externalViewsToProcess = null;
-    if (externalViewLeaderEventLogger != null) {
-      externalViewsToProcess = new ArrayList<>();
-    }
+    List<ExternalView> externalViewsToProcess = new ArrayList<>();
 
     // compose cluster config
     JSONObject jsonClusterShardMap = new JSONObject();
@@ -319,9 +317,7 @@ public class ConfigGenerator extends RoutingTableProvider implements CustomCodeC
         continue;
       }
 
-      if (externalViewLeaderEventLogger != null && externalViewsToProcess != null) {
-        externalViewsToProcess.add(externalView);
-      }
+      externalViewsToProcess.add(externalView);
 
       Set<String> partitions = externalView.getPartitionSet();
 
@@ -386,7 +382,8 @@ public class ConfigGenerator extends RoutingTableProvider implements CustomCodeC
      * Finally publish the shard_map in json_format to multiple configured publishers.
      */
     shardMapPublisher.publish(
-        resources.stream().collect(Collectors.toSet()), externalViewsToProcess, jsonClusterShardMap);
+        resources.stream().collect(Collectors.toSet()), externalViewsToProcess,
+        jsonClusterShardMap);
 
     long shardPostingTimeMillis = System.currentTimeMillis();
 
@@ -461,9 +458,15 @@ public class ConfigGenerator extends RoutingTableProvider implements CustomCodeC
     // at the moment.
     try (AutoCloseableLock lock = new AutoCloseableLock(this.synchronizedCallbackLock)) {
       // Cleanup any remaining items.
-      shardMapPublisher.close();
+      try {
+        shardMapPublisher.close();
+      } catch (IOException io) {
+        LOG.error("Error closing shardMapPublisher: ", io);
+      }
 
-      externalViewLeaderEventLogger.close();
+      if (externalViewLeaderEventLogger != null) {
+        externalViewLeaderEventLogger.close();
+      }
     } catch (IOException e) {
       e.printStackTrace();
     }

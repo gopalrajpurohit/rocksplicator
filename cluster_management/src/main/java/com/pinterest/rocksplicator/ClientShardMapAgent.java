@@ -32,6 +32,9 @@ import org.apache.commons.cli.Option;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.BoundedExponentialBackoffRetry;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.ConsoleAppender;
 import org.apache.log4j.Level;
@@ -42,6 +45,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -71,7 +75,11 @@ public class ClientShardMapAgent {
   private static final String clustersArg = "clusters";
   private static final String clustersFileArg = "clustersFile";
   private static final String shardMapDownloadDirArg = "shardMapDownloadDir";
+<<<<<<< HEAD
   private static final String bzipEnabledArg = "bzipEnabled";
+=======
+  private static final String disableSharingZkClientArg = "disableSharingZkClient";
+>>>>>>> grajpurohit/rocksplicator/client_agent_downloading_zk_compressed_shard_map
 
   private static Options constructCommandLineOptions() {
     Option shardMapZkSvrOption =
@@ -105,19 +113,34 @@ public class ClientShardMapAgent {
     shardMapDownloadDirOption.setRequired(true);
     shardMapDownloadDirOption.setArgName(shardMapDownloadDirArg);
 
+<<<<<<< HEAD
     Option bzipEnabledOption = OptionBuilder
         .withLongOpt(bzipEnabledArg)
         .withDescription("Enable watching bzip compressed path").create();
     bzipEnabledOption.setArgs(0);
     bzipEnabledOption.setRequired(false);
     bzipEnabledOption.setArgName(bzipEnabledArg);
+=======
+    Option disableSharingZkClientOption = OptionBuilder
+        .withLongOpt(disableSharingZkClientArg)
+        .withDescription("Explicitly disable sharing zk connection for watching multiple clusters")
+        .create();
+    disableSharingZkClientOption.setArgs(0);
+    disableSharingZkClientOption.setRequired(false);
+    disableSharingZkClientOption.setArgName(disableSharingZkClientArg);
+>>>>>>> grajpurohit/rocksplicator/client_agent_downloading_zk_compressed_shard_map
 
     Options options = new Options();
     options.addOption(shardMapZkSvrOption)
         .addOption(clustersOption)
         .addOption(clustersFileOption)
+<<<<<<< HEAD
         .addOption(bzipEnabledOption)
         .addOption(shardMapDownloadDirOption);
+=======
+        .addOption(shardMapDownloadDirOption)
+        .addOption(disableSharingZkClientOption);
+>>>>>>> grajpurohit/rocksplicator/client_agent_downloading_zk_compressed_shard_map
 
     return options;
   }
@@ -139,7 +162,11 @@ public class ClientShardMapAgent {
     final String shardMapDownloadDir = cmd.getOptionValue(shardMapDownloadDirArg);
     final String csClusters = cmd.getOptionValue(clustersArg, "");
     final String clustersFile = cmd.getOptionValue(clustersFileArg, "");
+<<<<<<< HEAD
     final boolean bzipEnabled = cmd.hasOption(bzipEnabledArg);
+=======
+    final boolean disableSharingZkClient = cmd.hasOption(disableSharingZkClientArg);
+>>>>>>> grajpurohit/rocksplicator/client_agent_downloading_zk_compressed_shard_map
 
     Preconditions.checkArgument(!(csClusters.isEmpty() && clustersFile.isEmpty()));
 
@@ -174,9 +201,31 @@ public class ClientShardMapAgent {
       };
     }
 
+    CuratorFramework localZkShardMapClient = null;
+    if (!disableSharingZkClient) {
+      localZkShardMapClient = CuratorFrameworkFactory
+          .newClient(zkConnectString,
+              new BoundedExponentialBackoffRetry(
+                  250, 10000, 60));
+
+      localZkShardMapClient.start();
+      try {
+        localZkShardMapClient.blockUntilConnected(120, TimeUnit.SECONDS);
+      } catch (InterruptedException e) {
+        localZkShardMapClient.close();
+        throw new RuntimeException();
+      }
+    }
+
+    final CuratorFramework zkShardMapClient = localZkShardMapClient;
     ClusterShardMapAgentManager handler =
+<<<<<<< HEAD
         new ClusterShardMapAgentManager(zkConnectString, shardMapDownloadDir, clustersSupplier,
             bzipEnabled);
+=======
+        new ClusterShardMapAgentManager(zkConnectString, zkShardMapClient,
+            shardMapDownloadDir, clustersSupplier);
+>>>>>>> grajpurohit/rocksplicator/client_agent_downloading_zk_compressed_shard_map
 
     Runtime.getRuntime().addShutdownHook(new Thread() {
       @Override
@@ -185,6 +234,9 @@ public class ClientShardMapAgent {
           handler.close();
         } catch (IOException e) {
           e.printStackTrace();
+        }
+        if (zkShardMapClient != null) {
+          zkShardMapClient.close();
         }
       }
     });
